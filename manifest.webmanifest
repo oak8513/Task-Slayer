@@ -1,0 +1,15 @@
+{
+  "name": "Task Slayer",
+  "short_name": "TaskSlayer",
+  "description": "Retro FPS-styled productivity tracker with a marine HP meter and a K9 pet that depends on your follow-through.",
+  "start_url": "./Task%20Slayer.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#030a03",
+  "theme_color": "#39ff14",
+  "icons": [
+    {"src": "faces/healthy.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "faces/healthy.png", "sizes": "192x192", "type": "image/png", "purpose": "any"}
+  ]
+}

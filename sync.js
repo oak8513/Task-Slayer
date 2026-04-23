@@ -38,14 +38,16 @@
     }
   }
 
-  // Debounced push — runs 1.5s after the last change
+  // Debounced push — runs 400ms after the last change (short so close-tab races are rare)
   let pushTimer = null;
   let pushing = false;
+  let pendingDirty = false; // set on every local change, cleared after successful push
   async function pushNow(){
     if (pushing) return;
     const user = window.__tsUser;
     if (!user) return;
     pushing = true;
+    pendingDirty = false; // snapshot: anything written during the upsert re-sets this
     try {
       const state = collectState();
       lastPushedJson = canonical(state);
@@ -56,15 +58,58 @@
       setBadge('synced');
     } catch (e){
       console.error('sync push failed', e);
+      pendingDirty = true; // keep dirty so we retry
       setBadge('offline');
     } finally { pushing = false; }
   }
   function schedulePush(){
     if (!window.__tsUser) return;
+    pendingDirty = true;
     setBadge('saving');
     clearTimeout(pushTimer);
-    pushTimer = setTimeout(pushNow, 1500);
+    pushTimer = setTimeout(pushNow, 400);
   }
+
+  // Synchronous flush on page hide (close tab, switch app, etc.) via fetch keepalive.
+  // fetch() with keepalive:true keeps the request alive after the page unloads,
+  // unlike a normal fetch which gets killed.
+  function flushOnHide(){
+    if (!pendingDirty || !window.__tsUser) return;
+    const user = window.__tsUser;
+    const session = window.__tsClient?.auth?.session?.() || null;
+    const state = collectState();
+    const body = JSON.stringify({ user_id: user.id, state });
+    // Pull the current access token from the session store Supabase keeps in localStorage
+    let accessToken = null;
+    try {
+      for (let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        if (k && k.startsWith('sb-') && k.endsWith('-auth-token')){
+          const parsed = JSON.parse(localStorage.getItem(k));
+          accessToken = parsed && parsed.access_token;
+          break;
+        }
+      }
+    } catch {}
+    if (!accessToken) return;
+    try {
+      fetch(SUPABASE_URL + '/rest/v1/user_state?on_conflict=user_id', {
+        method: 'POST',
+        keepalive: true,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + accessToken,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body,
+      });
+    } catch(e){ /* page is unloading — nothing we can do */ }
+  }
+  window.addEventListener('pagehide', flushOnHide);
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushOnHide();
+  });
 
   // Monkey-patch localStorage writes so any app change triggers a push
   const _set = localStorage.setItem.bind(localStorage);

@@ -4,6 +4,18 @@
   const SUPABASE_URL = 'https://qpxldkddhactqajlsyuk.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_6U_TclSOL-NkAKdUQLKmhQ_kgGvWK6k';
   const LS_PREFIX = 'taskslayer/';
+  // Keys under the prefix that we deliberately do NOT sync:
+  //   - cyberdog ticks constantly (per-device pet); syncing it creates echo loops
+  //     that overwrite real task edits with stale data from other devices
+  //   - first-run flags are one-shot and per-device
+  const SYNC_EXCLUDE = new Set([
+    'taskslayer/cyberdog/v2',
+    'taskslayer/earned-seeded/v1',
+    'taskslayer/ammo/starter-granted',
+  ]);
+  function shouldSync(key){
+    return typeof key === 'string' && key.startsWith(LS_PREFIX) && !SYNC_EXCLUDE.has(key);
+  }
   const BABEL_SCRIPTS = [
     { src: 'faces.jsx?v=5' },
     { src: 'cyberdog.jsx?v=5' },
@@ -15,26 +27,26 @@
   });
   window.__tsClient = client;
 
-  // Collect all app state keys from localStorage
+  // Collect all app state keys from localStorage (excluding per-device keys)
   function collectState(){
     const out = {};
     for (let i = 0; i < localStorage.length; i++){
       const k = localStorage.key(i);
-      if (k && k.startsWith(LS_PREFIX)) out[k] = localStorage.getItem(k);
+      if (shouldSync(k)) out[k] = localStorage.getItem(k);
     }
     return out;
   }
 
   function applyRemote(state){
-    // Clear existing app keys so removed items on other device propagate
+    // Only clear/replace sync'd keys — leave cyberdog & other per-device keys alone
     const toRemove = [];
     for (let i = 0; i < localStorage.length; i++){
       const k = localStorage.key(i);
-      if (k && k.startsWith(LS_PREFIX)) toRemove.push(k);
+      if (shouldSync(k)) toRemove.push(k);
     }
     toRemove.forEach(k => localStorage.removeItem(k));
     for (const [k, v] of Object.entries(state || {})){
-      if (typeof v === 'string') localStorage.setItem(k, v);
+      if (shouldSync(k) && typeof v === 'string') localStorage.setItem(k, v);
     }
   }
 
@@ -116,11 +128,11 @@
   const _rem = localStorage.removeItem.bind(localStorage);
   localStorage.setItem = function(k, v){
     _set(k, v);
-    if (k && k.startsWith(LS_PREFIX)) schedulePush();
+    if (shouldSync(k)) schedulePush();
   };
   localStorage.removeItem = function(k){
     _rem(k);
-    if (k && k.startsWith(LS_PREFIX)) schedulePush();
+    if (shouldSync(k)) schedulePush();
   };
 
   // Status badge (tiny, bottom-right)
@@ -241,7 +253,7 @@
   }
 
   let reloadTimer = null;
-  const REMOTE_RELOAD_DELAY_MS = 10000; // throttle: wait 10s after a remote change before reloading
+  const REMOTE_RELOAD_DELAY_MS = 2000; // 2s throttle now that cyberdog echo loops are gone
 
   function subscribeRealtime(userId){
     const channel = client

@@ -47,9 +47,11 @@
     if (!user) return;
     pushing = true;
     try {
+      const state = collectState();
+      lastPushedJson = JSON.stringify(state);
       await client.from('user_state').upsert({
         user_id: user.id,
-        state: collectState(),
+        state,
       });
       setBadge('synced');
     } catch (e){
@@ -184,6 +186,34 @@
     });
   }
 
+  // Remember what we last pushed so realtime echoes of our own changes are ignored
+  let lastPushedJson = '';
+
+  function subscribeRealtime(userId){
+    const channel = client
+      .channel('user_state:' + userId)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_state',
+        filter: 'user_id=eq.' + userId,
+      }, (payload) => {
+        const incoming = payload.new && payload.new.state;
+        if (!incoming) return;
+        const incomingJson = JSON.stringify(incoming);
+        // If this matches what we last pushed, it's our own echo — skip
+        if (incomingJson === lastPushedJson) return;
+        // If current local state already matches, nothing to do
+        if (incomingJson === JSON.stringify(collectState())) return;
+        // Apply remote changes and reload so React re-reads localStorage
+        applyRemote(incoming);
+        lastPushedJson = incomingJson;
+        location.reload();
+      })
+      .subscribe();
+    return channel;
+  }
+
   async function onSignedIn(session){
     window.__tsUser = session.user;
     // Fetch remote state
@@ -203,9 +233,11 @@
 
     if (hasRemote){
       applyRemote(remote);
+      lastPushedJson = JSON.stringify(remote);
     } else if (hasLocal){
       // First login — upload existing localStorage so it lives in the cloud
       try {
+        lastPushedJson = JSON.stringify(local);
         await client.from('user_state').upsert({ user_id: session.user.id, state: local });
       } catch(e){ console.warn('initial upload failed', e); }
     }
@@ -215,6 +247,7 @@
     if (ov) ov.remove();
 
     mountBadge(session.user.email);
+    subscribeRealtime(session.user.id);
     bootApp();
   }
 

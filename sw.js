@@ -1,5 +1,5 @@
 // Simple offline-first service worker for Task Slayer
-const CACHE = 'taskslayer-v8';
+const CACHE = 'taskslayer-v9';
 const CORE = [
   './',
   './index.html',

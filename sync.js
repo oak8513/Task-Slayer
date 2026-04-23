@@ -48,7 +48,7 @@
     pushing = true;
     try {
       const state = collectState();
-      lastPushedJson = JSON.stringify(state);
+      lastPushedJson = canonical(state);
       await client.from('user_state').upsert({
         user_id: user.id,
         state,
@@ -189,6 +189,15 @@
   // Remember what we last pushed so realtime echoes of our own changes are ignored
   let lastPushedJson = '';
 
+  // Deterministic stringify (sorted keys) so Postgres JSONB round-trips compare equal
+  function canonical(obj){
+    if (!obj || typeof obj !== 'object') return JSON.stringify(obj);
+    return JSON.stringify(Object.keys(obj).sort().reduce((o,k)=>{ o[k]=obj[k]; return o; }, {}));
+  }
+
+  let reloadTimer = null;
+  const REMOTE_RELOAD_DELAY_MS = 10000; // throttle: wait 10s after a remote change before reloading
+
   function subscribeRealtime(userId){
     const channel = client
       .channel('user_state:' + userId)
@@ -200,15 +209,20 @@
       }, (payload) => {
         const incoming = payload.new && payload.new.state;
         if (!incoming) return;
-        const incomingJson = JSON.stringify(incoming);
-        // If this matches what we last pushed, it's our own echo — skip
+        const incomingJson = canonical(incoming);
+        // Our own echo — skip
         if (incomingJson === lastPushedJson) return;
-        // If current local state already matches, nothing to do
-        if (incomingJson === JSON.stringify(collectState())) return;
-        // Apply remote changes and reload so React re-reads localStorage
-        applyRemote(incoming);
-        lastPushedJson = incomingJson;
-        location.reload();
+        // Already matches current local state — nothing to do
+        if (incomingJson === canonical(collectState())) return;
+        // Schedule a reload; bump the timer if more events arrive in the meantime
+        clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => {
+          // Re-check at fire time — if nothing's actually diverged now, skip
+          if (canonical(incoming) === canonical(collectState())) return;
+          applyRemote(incoming);
+          lastPushedJson = canonical(incoming);
+          location.reload();
+        }, REMOTE_RELOAD_DELAY_MS);
       })
       .subscribe();
     return channel;
@@ -233,11 +247,11 @@
 
     if (hasRemote){
       applyRemote(remote);
-      lastPushedJson = JSON.stringify(remote);
+      lastPushedJson = canonical(remote);
     } else if (hasLocal){
       // First login — upload existing localStorage so it lives in the cloud
       try {
-        lastPushedJson = JSON.stringify(local);
+        lastPushedJson = canonical(local);
         await client.from('user_state').upsert({ user_id: session.user.id, state: local });
       } catch(e){ console.warn('initial upload failed', e); }
     }

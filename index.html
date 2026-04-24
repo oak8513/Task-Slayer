@@ -189,9 +189,9 @@
     text-align:center;
   }
 
-  /* Center HUD: ammo / level / score grid */
+  /* Center HUD: ammo / level / score grid — auto-fit so streak+medals cells fit */
   .hud-center{
-    display:grid;grid-template-columns: repeat(4, 1fr);
+    display:grid;grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
     gap:8px;
   }
   .hud-center .hud-cell{padding:8px 10px}

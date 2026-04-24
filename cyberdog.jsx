@@ -49,6 +49,13 @@ function saveDog(d){
 
 function clamp(n, lo=0, hi=100){ return Math.max(lo, Math.min(hi, n)); }
 
+function evolveTier(level){
+  if (level >= 10) return 3;
+  if (level >= 5)  return 2;
+  return 1;
+}
+const TIER_LABELS = ['PUP', 'WOLF', 'APEX'];
+
 function advanceDog(dog, now, overdueCount){
   if (!dog.alive) return dog;
   const dtMin = (now - (dog.lastTick || now)) / 60000;
@@ -103,7 +110,7 @@ function dogFaceForState(dog, reaction){
   return 'teary';
 }
 
-function CyberdogSprite({ dog, reaction }){
+function CyberdogSprite({ dog, reaction, tier, petEvolutionOn }){
   const [breath, setBreath] = React.useState(0);
   React.useEffect(()=>{
     let raf; const start = performance.now();
@@ -119,6 +126,13 @@ function CyberdogSprite({ dog, reaction }){
   const dead = !dog.alive;
   const asleep = dog.asleep && dog.alive;
   const bob = dead ? 0 : asleep ? breath * 0.8 : breath * 1.6;
+  const t = tier || 1;
+  const evolveScale = petEvolutionOn && !dead ? (t === 3 ? 1.12 : t === 2 ? 1.06 : 1) : 1;
+  const tierGlow = petEvolutionOn && !reaction && dog.alive
+    ? t === 3 ? 'drop-shadow(0 0 12px rgba(57,255,20,0.75))'
+    : t === 2 ? 'drop-shadow(0 0 8px rgba(255,179,71,0.55))'
+    : 'none'
+    : 'none';
 
   return (
     <div className="dog-sprite" data-dead={dead}>
@@ -126,12 +140,12 @@ function CyberdogSprite({ dog, reaction }){
         src={`dogs/${face}.png?v=1`}
         alt={face}
         style={{
-          transform:`translateY(${bob}px)`,
+          transform:`translateY(${bob}px) scale(${evolveScale})`,
           transition:'transform 60ms linear',
           filter: reaction === 'pet' ? 'drop-shadow(0 0 8px rgba(255,122,26,0.7))'
                 : reaction === 'feed' ? 'drop-shadow(0 0 6px rgba(96,255,133,0.5))'
                 : reaction === 'clean' ? 'drop-shadow(0 0 8px rgba(159,208,255,0.7))'
-                : 'none',
+                : tierGlow,
         }}
       />
       {/* Reaction overlays */}
@@ -159,9 +173,11 @@ function DogBar({label, value, color, warn}){
 }
 
 // ---- Main panel ----
-function CyberdogPanel({ dog, setDog, petName = 'REX' }){
+function CyberdogPanel({ dog, setDog, petName = 'REX', petEvolutionOn = false }){
   const [reaction, setReaction] = React.useState(null);
   const [expanded, setExpanded] = React.useState(false); // mobile-only toggle
+  const tier = petEvolutionOn ? evolveTier(dog.level) : 1;
+  const tierLabel = TIER_LABELS[tier - 1];
   const pulse = (k, ms=900) => {
     setReaction(k);
     clearTimeout(pulse._t);
@@ -215,7 +231,7 @@ function CyberdogPanel({ dog, setDog, petName = 'REX' }){
       <div className="dog-body">
         <div className="dog-window" onClick={()=>setExpanded(e=>!e)} role="button" title="Tap to toggle stats">
           <div className="dog-window-inner" data-dead={!dog.alive}>
-            <CyberdogSprite dog={dog} reaction={reaction}/>
+            <CyberdogSprite dog={dog} reaction={reaction} tier={tier} petEvolutionOn={petEvolutionOn}/>
           </div>
           <div className="dog-window-scan"/>
           <div className="dog-tap-hint">TAP</div>
@@ -227,6 +243,7 @@ function CyberdogPanel({ dog, setDog, petName = 'REX' }){
           <DogBar label="NRG" value={dog.energy} color="#4aa3ff"/>
           <div className="dog-meta">
             <span>LVL <b>{dog.level}</b></span>
+            {petEvolutionOn && <span style={{color: tier===3?'var(--ink)':tier===2?'var(--amber)':'var(--ink-dim)'}}>[{tierLabel}]</span>}
             <span>XP {dog.xp}/50</span>
             <span>AGE {age}m</span>
           </div>
@@ -254,5 +271,5 @@ function CyberdogPanel({ dog, setDog, petName = 'REX' }){
 Object.assign(window, {
   CyberdogPanel, CyberdogSprite,
   loadDog, saveDog, advanceDog, makeDog,
-  FEED_PER_TASK, XP_PER_TASK, clamp,
+  FEED_PER_TASK, XP_PER_TASK, clamp, evolveTier,
 });

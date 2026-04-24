@@ -22,7 +22,10 @@ function rankFor(level){
 // --------- storage ---------
 const LS_KEY = 'taskslayer/v1';
 const LS_TWEAKS = 'taskslayer/tweaks/v1';
-const LS_POS = 'taskslayer/pos/v1';
+const LS_POS    = 'taskslayer/pos/v1';
+const LS_STREAK = 'taskslayer/streak/v1';
+const LS_STATS  = 'taskslayer/stats/v1';
+const LS_ACH    = 'taskslayer/achievements/v1';
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function now(){ return Date.now(); }
@@ -117,6 +120,22 @@ function collectTags(tasks){
   return Array.from(set).sort();
 }
 
+// --------- Achievement definitions ---------
+const ACHIEVEMENT_DEFS = [
+  { id: 'first_kill',  label: 'FIRST BLOOD',   desc: 'Complete your first task.',   check: s => s.totalKills >= 1 },
+  { id: 'kill_10',     label: 'ROOKIE',         desc: 'Complete 10 tasks.',          check: s => s.totalKills >= 10 },
+  { id: 'kill_50',     label: 'VETERAN',        desc: 'Complete 50 tasks.',          check: s => s.totalKills >= 50 },
+  { id: 'kill_100',    label: 'ELITE',          desc: 'Complete 100 tasks.',         check: s => s.totalKills >= 100 },
+  { id: 'kill_500',    label: 'LEGEND',         desc: 'Complete 500 tasks.',         check: s => s.totalKills >= 500 },
+  { id: 'boss_1',      label: 'BOSS SLAYER',    desc: 'Defeat your first boss.',     check: s => s.bossKills >= 1 },
+  { id: 'boss_10',     label: 'DRAGON SLAYER',  desc: 'Defeat 10 bosses.',           check: s => s.bossKills >= 10 },
+  { id: 'streak_3',    label: 'WARM STREAK',    desc: '3-day kill streak.',          check: s => s.streakCurrent >= 3 },
+  { id: 'streak_7',    label: 'WEEK WARRIOR',   desc: '7-day kill streak.',          check: s => s.streakCurrent >= 7 },
+  { id: 'streak_30',   label: 'IRON WILL',      desc: '30-day kill streak.',         check: s => s.streakCurrent >= 30 },
+  { id: 'level_5',     label: 'OFFICER',        desc: 'Reach level 5.',              check: s => s.level >= 5 },
+  { id: 'level_10',    label: 'WAR HERO',       desc: 'Reach level 10.',             check: s => s.level >= 10 },
+];
+
 // --------- state hooks ---------
 function useLocalState(key, initial){
   const [v, setV] = useState(() => {
@@ -194,6 +213,12 @@ function App(){
   const [tagFilter, setTagFilter] = useState(null); // null = all; string = only that tag
   const addTaskInputRef = useRef(null);
   const searchInputRef = useRef(null);
+  const [killStats, setKillStats] = useLocalState(LS_STATS, { totalKills: 0, bossKills: 0 });
+  const [streak, setStreak] = useLocalState(LS_STREAK, { current: 0, best: 0, lastKillDate: null });
+  const [achievements, setAchievements] = useLocalState(LS_ACH, { unlocked: {} });
+  const [achToast, setAchToast] = useState(null);
+  const [showAch, setShowAch] = useState(false);
+  const achievementsInit = useRef(false);
 
   const startVacation = () => {
     setVacation({ startedAt: Date.now() });
@@ -402,6 +427,25 @@ function App(){
     return () => clearTimeout(t);
   }, [deathFx]);
 
+  // Achievement check — fires when killStats, streak, or level changes
+  useEffect(() => {
+    if (!achievementsInit.current) { achievementsInit.current = true; return; }
+    if (!flagOn(tweaks, 'achievements')) return;
+    const ctx = {
+      totalKills: killStats.totalKills, bossKills: killStats.bossKills,
+      streakCurrent: streak.current, level,
+    };
+    const toUnlock = ACHIEVEMENT_DEFS.filter(def => !achievements.unlocked[def.id] && def.check(ctx));
+    if (toUnlock.length === 0) return;
+    setAchievements(prev => ({
+      unlocked: { ...prev.unlocked, ...Object.fromEntries(toUnlock.map(d => [d.id, true])) }
+    }));
+    setAchToast(toUnlock[0]);
+    playSfx(tweaks.sfxOn, 'unlock', window.innerWidth / 2, window.innerHeight / 2);
+    setTimeout(() => setAchToast(null), 3500);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [killStats, streak, level, achievements]);
+
   // --------- Task actions ---------
   const addTask = (t) => setTasks(ts => [...ts, {id: uid(), done:false, ...t}]);
   const updateTask = (id, patch) => setTasks(ts => ts.map(t => t.id===id ? {...t, ...patch} : t));
@@ -425,6 +469,17 @@ function App(){
     setTasks(ts => ts.map(t => t.id===taskId
       ? { ...t, children: (t.children||[]).filter(c => c.id !== childId) }
       : t));
+  };
+
+  const updateStreak = () => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const ydayISO  = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    setStreak(prev => {
+      if (prev.lastKillDate === todayISO) return prev;
+      const next = prev.lastKillDate === ydayISO ? prev.current + 1 : 1;
+      const best = Math.max(prev.best || 0, next);
+      return { current: next, best, lastKillDate: todayISO };
+    });
   };
 
   const flashFace = () => {
@@ -474,6 +529,8 @@ function App(){
         grantMedpack(25 + (task.hpMax || 3) * 5); // big heal for boss
         setAmmo(a => a + 5);
         setTotalEarned(t => t + 5);
+        setKillStats(s => ({ ...s, bossKills: s.bossKills + 1, totalKills: s.totalKills + 1 }));
+        updateStreak();
         if (task.recurrence && task.recurrence !== 'none'){
           const nx = nextRecurrence(task);
           updateTask(task.id, { done:false, hpLeft: task.hpMax||3, due: nx });
@@ -491,6 +548,8 @@ function App(){
     grantMedpack(5); // small heal per kill
     setAmmo(a => a + 1);
     setTotalEarned(t => t + 1);
+    setKillStats(s => ({ ...s, totalKills: s.totalKills + 1 }));
+    updateStreak();
     if (task.recurrence && task.recurrence !== 'none'){
       const nx = nextRecurrence(task);
       updateTask(task.id, { done:false, due: nx });
@@ -723,7 +782,13 @@ function App(){
              vacation={vacation}
              faceMenu={faceMenu} setFaceMenu={setFaceMenu}
              onStartVacation={startVacation} onEndVacation={endVacation}
-             dog={dog} setDog={setDog}/>
+             dog={dog} setDog={setDog}
+             streak={streak} streaksOn={flagOn(tweaks,'streaks')}
+             achievements={achievements}
+             achievementsOn={flagOn(tweaks,'achievements')}
+             unlockedCount={Object.keys(achievements.unlocked).length}
+             onShowAch={()=>setShowAch(true)}
+             petEvolutionOn={flagOn(tweaks,'petEvolution')}/>
       </div>
 
       {editing && (
@@ -755,16 +820,25 @@ function App(){
       {levelUpFx && <LevelUpOverlay level={levelUpFx.level} title={levelUpFx.title}/>}
       {deathFx && <DeathOverlay countdown={deathFx.countdown} demoted={deathFx.canDemote}/>}
       {vacation && <StandbyOverlay startedAt={vacation.startedAt} onEnd={endVacation}/>}
+      {achToast && <AchievementToast achievement={achToast}/>}
+      {showAch && flagOn(tweaks,'achievements') && (
+        <AchievementsModal
+          achievements={achievements}
+          killStats={killStats}
+          streak={streak}
+          level={level}
+          onClose={()=>setShowAch(false)}
+        />
+      )}
     </>
   );
 }
 
 // --------- HUD ---------
-function Hud({ hp, ammo, level, score, faceState, faceStyle, overdueCount, dog, setDog, totalEarned, vacation, faceMenu, setFaceMenu, onStartVacation, onEndVacation }){
+function Hud({ hp, ammo, level, score, faceState, faceStyle, overdueCount, dog, setDog, totalEarned, vacation, faceMenu, setFaceMenu, onStartVacation, onEndVacation,
+               streak, streaksOn, achievements, achievementsOn, unlockedCount, onShowAch, petEvolutionOn }){
   const hpLow = hp <= 30;
   const rank = rankFor(level);
-  // progress toward next level from lifetime ammo earned
-  const levelStart = (level - 1 + (level > 1 ? 0 : 0)) * 1000; // conceptual floor (not accounting demotions)
   const nextAt = 1000 - ((totalEarned || 0) % 1000);
   return (
     <div className="hud">
@@ -805,10 +879,23 @@ function Hud({ hp, ammo, level, score, faceState, faceStyle, overdueCount, dog, 
         </div>
         <Stat label="SCORE" value={score}/>
         <Stat label="OVERDUE" value={overdueCount} low={overdueCount>0}/>
+        {streaksOn && (
+          <div className="hud-cell" style={{alignItems:'flex-start'}}>
+            <div className="label">STREAK</div>
+            <div className="value" style={streak.current >= 3 ? {color:'var(--amber)'} : {}}>{streak.current}D</div>
+            <div style={{fontFamily:"'VT323',monospace",fontSize:12,color:'var(--ink-dim)',marginTop:-2}}>BEST {streak.best}D</div>
+          </div>
+        )}
+        {achievementsOn && (
+          <div className="hud-cell" style={{alignItems:'flex-start',cursor:'pointer'}} onClick={onShowAch} title="View medals">
+            <div className="label">MEDALS</div>
+            <div className="value" style={{fontSize:28}}>{unlockedCount}/{ACHIEVEMENT_DEFS.length}</div>
+          </div>
+        )}
       </div>
 
       <div className="hud-cell dog-cell">
-        <CyberdogPanel dog={dog} setDog={setDog}/>
+        <CyberdogPanel dog={dog} setDog={setDog} petEvolutionOn={petEvolutionOn}/>
       </div>
     </div>
   );
@@ -1311,8 +1398,11 @@ function TaskModal({task, tweaks, setTweaks, tagsOn, allTags, onCancel, onSave, 
 // Flag registry — new features append to this list. Defaults are applied when the key is missing.
 // Setting a flag to false in the Tweaks UI lets the user disable a feature live without a redeploy.
 const FLAG_REGISTRY = [
-  { key: 'subtasks', label: 'Subtasks', defaultOn: true },
-  { key: 'tags',     label: 'Tags',     defaultOn: true },
+  { key: 'subtasks',     label: 'Subtasks',        defaultOn: true },
+  { key: 'tags',         label: 'Tags',             defaultOn: true },
+  { key: 'streaks',      label: 'Streak counter',   defaultOn: true },
+  { key: 'achievements', label: 'Achievements',     defaultOn: true },
+  { key: 'petEvolution', label: 'Pet evolution',    defaultOn: true },
 ];
 function flagOn(tweaks, key){
   const entry = FLAG_REGISTRY.find(f => f.key === key);
@@ -1522,6 +1612,54 @@ function playSfx(on, kind, x, y){
     requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
+}
+
+// --------- Achievement Toast ---------
+function AchievementToast({ achievement }){
+  return (
+    <div style={{
+      position:'fixed', bottom:80, left:'50%', transform:'translateX(-50%)',
+      background:'#050f05', border:'2px solid var(--amber)', padding:'10px 16px',
+      zIndex:8500, textAlign:'center', boxShadow:'0 0 20px rgba(255,179,71,0.4)',
+      minWidth:220, pointerEvents:'none',
+    }}>
+      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:7,color:'var(--amber)',letterSpacing:'1px',marginBottom:4}}>MEDAL UNLOCKED</div>
+      <div style={{fontFamily:"'VT323',monospace",fontSize:24,color:'var(--ink-hot)',lineHeight:1}}>{achievement.label}</div>
+      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:'var(--ink-dim)',marginTop:2}}>{achievement.desc}</div>
+    </div>
+  );
+}
+
+// --------- Achievements Modal ---------
+function AchievementsModal({ achievements, killStats, streak, level, onClose }){
+  const unlockedCount = Object.keys(achievements.unlocked).length;
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" style={{maxHeight:'72vh',overflowY:'auto',display:'flex',flexDirection:'column',gap:0}} onClick={e=>e.stopPropagation()}>
+        <h3>MEDALS [{unlockedCount}/{ACHIEVEMENT_DEFS.length}]</h3>
+        <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:12}}>
+          {ACHIEVEMENT_DEFS.map(def => {
+            const earned = !!achievements.unlocked[def.id];
+            return (
+              <div key={def.id} style={{
+                padding:'7px 10px', border:'1px solid',
+                borderColor: earned ? 'var(--amber)' : 'var(--ink-deep)',
+                background: earned ? 'rgba(255,179,71,0.07)' : 'transparent',
+                display:'flex', gap:10, alignItems:'flex-start',
+              }}>
+                <span style={{fontFamily:"'VT323',monospace",fontSize:22,color:earned?'var(--amber)':'var(--ink-deep)',lineHeight:1,marginTop:1}}>{earned?'■':'□'}</span>
+                <div>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:8,color:earned?'var(--ink-hot)':'var(--ink-dim)',letterSpacing:'1px'}}>{def.label}</div>
+                  <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:'var(--ink-dim)',marginTop:2}}>{earned ? def.desc : '???'}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button className="btn ghost" style={{width:'100%',fontSize:8}} onClick={onClose}>CLOSE</button>
+      </div>
+    </div>
+  );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);

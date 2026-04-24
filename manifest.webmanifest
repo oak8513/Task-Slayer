@@ -11,5 +11,25 @@
   "icons": [
     {"src": "faces/healthy.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
     {"src": "faces/healthy.png", "sizes": "192x192", "type": "image/png", "purpose": "any"}
+  ],
+  "shortcuts": [
+    {
+      "name": "Add Task",
+      "short_name": "Add",
+      "url": "./Task%20Slayer.html#add",
+      "icons": [{"src": "faces/focused.png", "sizes": "192x192"}]
+    },
+    {
+      "name": "Today",
+      "short_name": "Today",
+      "url": "./Task%20Slayer.html#today",
+      "icons": [{"src": "faces/healthy.png", "sizes": "192x192"}]
+    },
+    {
+      "name": "Bosses",
+      "short_name": "Bosses",
+      "url": "./Task%20Slayer.html#bosses",
+      "icons": [{"src": "faces/rage.png", "sizes": "192x192"}]
+    }
   ]
 }

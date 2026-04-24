@@ -158,6 +158,10 @@ function App(){
   ]);
   const [unlockFx, setUnlockFx] = useState(null); // {name, icon} for unlock animation
   const [faceMenu, setFaceMenu] = useState(false); // marine face click menu
+  const [installPrompt, setInstallPrompt] = useState(null); // PWA beforeinstallprompt event
+  const [installDismissed, setInstallDismissed] = useState(() => {
+    try { return localStorage.getItem('taskslayer/install-dismissed') === '1'; } catch { return false; }
+  });
 
   const startVacation = () => {
     setVacation({ startedAt: Date.now() });
@@ -209,6 +213,19 @@ function App(){
   useEffect(()=>{
     document.body.classList.toggle('crt', !!tweaks.scanlines);
   },[tweaks.scanlines]);
+
+  // Capture PWA install prompt
+  useEffect(()=>{
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    // Hide chip if app is already installed
+    const installed = () => setInstallDismissed(true);
+    window.addEventListener('appinstalled', installed);
+    return ()=>{
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installed);
+    };
+  },[]);
 
   // Periodic tick so overdue updates live
   useEffect(()=>{
@@ -262,6 +279,20 @@ function App(){
   // Keep overdue in a ref so the dog tick always reads the latest value
   const overdueCountRef = useRef(0);
   useEffect(()=>{ overdueCountRef.current = overdueCount; },[overdueCount]);
+
+  // App badge — show overdue count on installed PWA icon
+  useEffect(()=>{
+    if (navigator.setAppBadge) {
+      if (overdueCount > 0) navigator.setAppBadge(overdueCount).catch(()=>{});
+      else navigator.clearAppBadge?.().catch(()=>{});
+    }
+  },[overdueCount]);
+
+  // Dynamic theme-color — amber during vacation, green otherwise
+  useEffect(()=>{
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', vacation ? '#ffb347' : '#030a03');
+  },[vacation]);
 
   // --- LEVEL UP detection ---
   useEffect(() => {
@@ -455,6 +486,18 @@ function App(){
 
   const faceState = healthToFaceState(hp);
 
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === 'accepted') setInstallDismissed(true);
+    setInstallPrompt(null);
+  };
+  const dismissInstall = () => {
+    setInstallDismissed(true);
+    try { localStorage.setItem('taskslayer/install-dismissed', '1'); } catch {}
+  };
+
   return (
     <>
       <div className="fx-layer" ref={fxLayerRef}/>
@@ -467,6 +510,16 @@ function App(){
               <span style={{color:'var(--ink-dim)',fontSize:8}}>v1.0  ·  E1M{level}</span>
             </div>
             <div style={{display:'flex',gap:14,alignItems:'center',fontSize:8,color:'var(--ink)'}}>
+              {installPrompt && !installDismissed && (
+                <span
+                  onClick={handleInstall}
+                  style={{cursor:'pointer',color:'var(--amber)',border:'1px solid var(--amber)',padding:'2px 6px',letterSpacing:'1px',display:'flex',alignItems:'center',gap:4}}
+                  title="Install Task Slayer as an app"
+                >
+                  INSTALL
+                  <span onClick={(e)=>{e.stopPropagation();dismissInstall();}} style={{marginLeft:4,opacity:0.6,cursor:'pointer'}} title="Dismiss">x</span>
+                </span>
+              )}
               <span>OVERDUE: {overdueCount}</span>
               <span>ACTIVE: {activeTasks}</span>
               <ClockBlock mini/>

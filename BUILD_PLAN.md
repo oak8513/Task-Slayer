@@ -84,7 +84,7 @@ If something breaks during a batch: revert that batch's commits and tick the bat
 - No SW push / VAPID — that's "Big Stuff" we're skipping.
 - Flag: `flags.notifications` default OFF (intrusive permission prompt).
 
-### ☐ Batch 6 — Mobile UX (~2 hr, gated, mostly default OFF)
+### ☑ Batch 6 — Mobile UX (~2 hr, gated, mostly default OFF) — done 2026-04-24, sha bcbbf3b, notes: all 4 sub-features complete; swipe+undo toast, long-press boss modal, bottom nav, voice input with natural date parse
 - Swipe actions: pointer events on `.task` rows. Left ≥ 80px → delete + undo toast. Right ≥ 80px → toggle done. Spring-back animation. Flag: `flags.swipeActions` default OFF.
 - Long-press (600ms) on regular task → "Convert to boss" modal with HP picker. Flag: `flags.longPressBoss` default ON (low risk).
 - Bottom-tab nav on `< 600px`: render existing tabs as fixed bottom bar. Flag: `flags.bottomNav` default OFF.
@@ -143,6 +143,7 @@ Memory directory: `C:\Users\Owner\.claude\projects\C--Users-Owner-Documents-Clau
 - **2026-04-24 session 4:** Batch 4A (subtasks + tags) complete — used the planned split point. Subtasks: inline expand/collapse with nested checkboxes, add-step input, STEPS n/m counter chip; flag `subtasks` default ON. Tags: lowercase single tag per task, 8-color palette with per-tag color map in `tweaks.tagColors`, filter strip below tabs with ALL/tag chips, datalist suggestions from existing tags; flag `tags` default ON. Flags now visible in Tweaks panel. SW cache v16, app.jsx?v=8. Next session: Batch 4B (streaks + achievements + pet evolution).
 - **2026-04-24 session 5:** Batch 4B (streaks + achievements + pet evolution) complete. Streak counter in HUD (STREAK cell, amber ≥3 day, best shown). 12 achievements tracked in localStorage, toast on unlock, MEDALS HUD cell + modal. Pet evolution: tier 1/2/3 (PUP/WOLF/APEX) with glow + scale. All 3 flag-gated default ON. SW cache v17, app.jsx?v=9, cyberdog.jsx?v=6. Next session: Batch 5 (browser notifications, default OFF).
 - **2026-04-24 session 6 (scheduled):** Batch 5 complete. Browser notifications flag-gated (default OFF). Nag chip in screen header triggers Notification.requestPermission(). 60s interval checks due-time crossings via notifiedTasksRef (seeded with existing overdue tasks on activation to avoid retroactive spam). Recurring tasks handled by clearing ref entry when task completes or due date shifts to future. SW cache v18, app.jsx?v=10. Next session: Batch 6 (mobile UX).
+- **2026-04-24 session 7 (scheduled):** Batch 6 complete. Swipe actions (left→delete+undo toast, right→complete, spring-back, default OFF). Long-press boss convert (600ms hold→modal with HP picker, default ON). Bottom nav on mobile <600px (fixed bar replaces top tabs, default OFF). Voice input in add-bar via webkitSpeechRecognition with "today/tomorrow/next week" date parsing (default OFF). SW cache v19. Next session: Batch 7 (themes).
 
 ---
 
@@ -151,4 +152,4 @@ Big-stuff items deferred: shared lists, co-op bosses, public profiles/leaderboar
 
 ---
 
-**Last touched:** 2026-04-24 — batch 5 (browser notifications) done. Next up: Batch 6 (mobile UX — swipe actions, long-press boss convert, bottom nav, voice input).
+**Last touched:** 2026-04-24 — batch 6 (mobile UX) done. Next up: Batch 7 (themes — green/amber/red, CSS variable swap, flag altTheme default ON).

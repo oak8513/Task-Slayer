@@ -63,7 +63,7 @@ If something breaks during a batch: revert that batch's commits and tick the bat
 - Add `overscroll-behavior: none` on body in [index.html](index.html) CSS.
 - Dynamic `theme-color` meta — amber when in vacation mode.
 
-### ☐ Batch 3 — Keyboard + search + date chips (~45 min, no flags)
+### ☑ Batch 3 — Keyboard + search + date chips (~45 min, no flags) — done 2026-04-24
 - Global keydown listener: `n` focus add-task, `1`–`5` switch tabs, `/` focus search, `Escape` close modal. Ignore when target is input/textarea.
 - Search input above tabs row — case-insensitive title `includes`. Persists across tab switches.
 - Quick-date chips (Today / Tomorrow / Next week) next to date picker.
@@ -139,6 +139,7 @@ Memory directory: `C:\Users\Owner\.claude\projects\C--Users-Owner-Documents-Clau
 
 - **2026-04-23 session 1:** Batches 0 + 1 complete. Rollback tag `v1-stable` pushed. Flag registry in place (empty, ready for later batches). Real WebAudio sfx + haptics + canvas-confetti wired into playSfx. Callsites updated for levelup/unlock/death kinds. Verified: console clean, all CDN scripts load, login flow intact. Next session: Batch 2 (PWA polish — app badge, install prompt, manifest shortcuts).
 - **2026-04-24 session 2:** Batch 2 complete. App badge shows overdue count, beforeinstallprompt captured with INSTALL chip in header, manifest shortcuts added, overscroll-behavior:none, dynamic amber theme-color during vacation. SW cache v14. Next session: Batch 3 (keyboard + search + date chips).
+- **2026-04-24 session 3:** Batch 3 complete. Global keyboard shortcuts (n / 1–5 / / / Esc) ignore input fields. Persistent search input above tabs filters task titles. Quick-date chips (TODAY/TOMORROW/NEXT WEEK) added next to DUE field in edit modal. SW cache v15. Next session: Batch 4 (subtasks + tags + streaks + achievements + pet evolution — flag-gated, possible split point).
 
 ---
 
@@ -147,4 +148,4 @@ Big-stuff items deferred: shared lists, co-op bosses, public profiles/leaderboar
 
 ---
 
-**Last touched:** 2026-04-24 — batch 2 done. Next up: Batch 3 (keyboard + search + date chips).
+**Last touched:** 2026-04-24 — batch 3 done. Next up: Batch 4 (subtasks + tags + streaks + achievements + pet evolution — flag-gated; possible split point).

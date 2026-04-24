@@ -219,6 +219,13 @@ function App(){
   const [achToast, setAchToast] = useState(null);
   const [showAch, setShowAch] = useState(false);
   const achievementsInit = useRef(false);
+  const [notifPerm, setNotifPerm] = useState(() =>
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
+  const [notifNagDismissed, setNotifNagDismissed] = useState(false);
+  const notifiedTasksRef = useRef(null); // null = not yet initialized
+  const tasksRef = useRef(tasks);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
   const startVacation = () => {
     setVacation({ startedAt: Date.now() });
@@ -381,6 +388,45 @@ function App(){
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', vacation ? '#ffb347' : '#030a03');
   },[vacation]);
+
+  // Browser notifications — fire when tasks cross their due time
+  useEffect(() => {
+    if (!flagOn(tweaks, 'notifications')) return;
+    if (notifPerm !== 'granted') return;
+    // Seed skip-set with tasks already overdue on mount so we don't spam retroactively
+    if (notifiedTasksRef.current === null) {
+      notifiedTasksRef.current = new Set(
+        tasksRef.current.filter(isOverdue).map(t => t.id)
+      );
+    }
+    const checkDue = () => {
+      const n = Date.now();
+      for (const task of tasksRef.current) {
+        if (task.done) {
+          notifiedTasksRef.current.delete(task.id);
+          continue;
+        }
+        if (!task.due) continue;
+        if (task.due > n) {
+          // Due date is future — clear so the crossing notifies
+          notifiedTasksRef.current.delete(task.id);
+          continue;
+        }
+        if (notifiedTasksRef.current.has(task.id)) continue;
+        notifiedTasksRef.current.add(task.id);
+        try {
+          const notif = new Notification('Task overdue: ' + task.title, {
+            icon: 'faces/critical.png',
+            tag: 'ts-' + task.id,
+          });
+          notif.onclick = () => { window.focus(); notif.close(); };
+        } catch(e) {}
+      }
+    };
+    const id = setInterval(checkDue, 60_000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifPerm, tweaks]);
 
   // --- LEVEL UP detection ---
   useEffect(() => {
@@ -665,6 +711,20 @@ function App(){
                 >
                   INSTALL
                   <span onClick={(e)=>{e.stopPropagation();dismissInstall();}} style={{marginLeft:4,opacity:0.6,cursor:'pointer'}} title="Dismiss">x</span>
+                </span>
+              )}
+              {flagOn(tweaks, 'notifications') && !notifNagDismissed && notifPerm === 'default' && typeof Notification !== 'undefined' && (
+                <span
+                  onClick={async () => {
+                    const perm = await Notification.requestPermission();
+                    setNotifPerm(perm);
+                    setNotifNagDismissed(true);
+                  }}
+                  style={{cursor:'pointer',color:'var(--amber)',border:'1px solid var(--amber)',padding:'2px 6px',letterSpacing:'1px',display:'flex',alignItems:'center',gap:4}}
+                  title="Enable overdue task alerts"
+                >
+                  ENABLE ALERTS?
+                  <span onClick={(e)=>{e.stopPropagation();setNotifNagDismissed(true);}} style={{marginLeft:4,opacity:0.6,cursor:'pointer'}} title="Dismiss">x</span>
                 </span>
               )}
               <span>OVERDUE: {overdueCount}</span>
@@ -1398,11 +1458,12 @@ function TaskModal({task, tweaks, setTweaks, tagsOn, allTags, onCancel, onSave, 
 // Flag registry — new features append to this list. Defaults are applied when the key is missing.
 // Setting a flag to false in the Tweaks UI lets the user disable a feature live without a redeploy.
 const FLAG_REGISTRY = [
-  { key: 'subtasks',     label: 'Subtasks',        defaultOn: true },
-  { key: 'tags',         label: 'Tags',             defaultOn: true },
-  { key: 'streaks',      label: 'Streak counter',   defaultOn: true },
-  { key: 'achievements', label: 'Achievements',     defaultOn: true },
-  { key: 'petEvolution', label: 'Pet evolution',    defaultOn: true },
+  { key: 'subtasks',      label: 'Subtasks',          defaultOn: true  },
+  { key: 'tags',          label: 'Tags',               defaultOn: true  },
+  { key: 'streaks',       label: 'Streak counter',     defaultOn: true  },
+  { key: 'achievements',  label: 'Achievements',       defaultOn: true  },
+  { key: 'petEvolution',  label: 'Pet evolution',      defaultOn: true  },
+  { key: 'notifications', label: 'Browser alerts',     defaultOn: false },
 ];
 function flagOn(tweaks, key){
   const entry = FLAG_REGISTRY.find(f => f.key === key);

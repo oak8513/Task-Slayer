@@ -91,7 +91,7 @@ If something breaks during a batch: revert that batch's commits and tick the bat
 - Voice input: mic button next to add-bar using `webkitSpeechRecognition` + rough natural-date parse. Flag: `flags.voiceInput` default OFF (Chrome/Safari only).
 - Possible split point: swipe + long-press one session, bottom nav + voice next.
 
-### ☐ Batch 7 — Themes (~45 min, gated, default ON)
+### ☑ Batch 7 — Themes (~45 min, gated, default ON) — done 2026-04-24, sha 926ba83, notes: green/amber/red CSS var swap via data-theme on html, altTheme flag default ON, theme picker segmented control in Tweaks, theme-color meta updated per theme
 - Three themes selectable in Tweaks: `green` (default), `amber`, `red`. CSS variable swap via `data-theme` on `<html>`.
 - Persist as `tweaks.theme`.
 - Flag: `flags.altTheme` default ON.
@@ -144,6 +144,7 @@ Memory directory: `C:\Users\Owner\.claude\projects\C--Users-Owner-Documents-Clau
 - **2026-04-24 session 5:** Batch 4B (streaks + achievements + pet evolution) complete. Streak counter in HUD (STREAK cell, amber ≥3 day, best shown). 12 achievements tracked in localStorage, toast on unlock, MEDALS HUD cell + modal. Pet evolution: tier 1/2/3 (PUP/WOLF/APEX) with glow + scale. All 3 flag-gated default ON. SW cache v17, app.jsx?v=9, cyberdog.jsx?v=6. Next session: Batch 5 (browser notifications, default OFF).
 - **2026-04-24 session 6 (scheduled):** Batch 5 complete. Browser notifications flag-gated (default OFF). Nag chip in screen header triggers Notification.requestPermission(). 60s interval checks due-time crossings via notifiedTasksRef (seeded with existing overdue tasks on activation to avoid retroactive spam). Recurring tasks handled by clearing ref entry when task completes or due date shifts to future. SW cache v18, app.jsx?v=10. Next session: Batch 6 (mobile UX).
 - **2026-04-24 session 7 (scheduled):** Batch 6 complete. Swipe actions (left→delete+undo toast, right→complete, spring-back, default OFF). Long-press boss convert (600ms hold→modal with HP picker, default ON). Bottom nav on mobile <600px (fixed bar replaces top tabs, default OFF). Voice input in add-bar via webkitSpeechRecognition with "today/tomorrow/next week" date parsing (default OFF). SW cache v19. Next session: Batch 7 (themes).
+- **2026-04-24 session 8 (scheduled):** Batch 7 complete. Three themes (green default, amber, red) via CSS variable overrides on [data-theme] selector. altTheme flag default ON. Segmented picker in Tweaks panel. data-theme applied to <html> via useEffect; theme-color meta tag updated per theme. SW cache v20. All batches in BUILD_PLAN complete.
 
 ---
 
@@ -152,4 +153,4 @@ Big-stuff items deferred: shared lists, co-op bosses, public profiles/leaderboar
 
 ---
 
-**Last touched:** 2026-04-24 — batch 6 (mobile UX) done. Next up: Batch 7 (themes — green/amber/red, CSS variable swap, flag altTheme default ON).
+**Last touched:** 2026-04-24 — batch 7 (themes) done. All planned batches complete.

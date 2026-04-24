@@ -108,7 +108,8 @@ function useLocalState(key, initial){
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "scanlines": true,
   "faceStyle": "pixel",
-  "sfxOn": true
+  "sfxOn": true,
+  "flags": {}
 }/*EDITMODE-END*/;
 
 // --------- Root ---------
@@ -1006,8 +1007,26 @@ function TaskModal({task, onCancel, onSave, onDelete}){
   );
 }
 
+// Flag registry — new features append to this list. Defaults are applied when the key is missing.
+// Setting a flag to false in the Tweaks UI lets the user disable a feature live without a redeploy.
+const FLAG_REGISTRY = [
+  // { key: 'notifications', label: 'Notifications', defaultOn: false },
+  // Batches 4–7 will populate this as features land.
+];
+function flagOn(tweaks, key){
+  const entry = FLAG_REGISTRY.find(f => f.key === key);
+  const defaultOn = entry ? entry.defaultOn : false;
+  const v = tweaks && tweaks.flags ? tweaks.flags[key] : undefined;
+  return v === undefined ? defaultOn : !!v;
+}
+
 // --------- Tweaks panel ---------
 function TweaksPanel({ tweaks, onChange, onClose }){
+  const toggleFlag = (key) => {
+    const next = { ...(tweaks.flags || {}) };
+    next[key] = !flagOn(tweaks, key);
+    onChange({ flags: next });
+  };
   return (
     <div className="tweaks">
       <h4>TWEAKS</h4>
@@ -1031,6 +1050,19 @@ function TweaksPanel({ tweaks, onChange, onClose }){
           ))}
         </div>
       </div>
+      {FLAG_REGISTRY.length > 0 && (
+        <>
+          <h4 style={{marginTop:14}}>FLAGS</h4>
+          {FLAG_REGISTRY.map(f => (
+            <div className="tweak-row" key={f.key}>
+              <span>{f.label}</span>
+              <div className={"switch "+(flagOn(tweaks, f.key)?'on':'')} onClick={()=>toggleFlag(f.key)}>
+                <div className="knob"/>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
       <div style={{display:'flex',gap:6,marginTop:10}}>
         <button className="btn ghost" style={{flex:1,fontSize:8}} onClick={onClose}>CLOSE</button>
       </div>

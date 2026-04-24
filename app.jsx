@@ -89,6 +89,34 @@ function nextRecurrence(task){
   return d.getTime();
 }
 
+// --------- tag palette ---------
+const TAG_PALETTE = [
+  { name: 'green',  hex: '#39ff14' },
+  { name: 'amber',  hex: '#ffb347' },
+  { name: 'red',    hex: '#ff3b2f' },
+  { name: 'cyan',   hex: '#39e0ff' },
+  { name: 'violet', hex: '#c27aff' },
+  { name: 'lime',   hex: '#aaff6a' },
+  { name: 'pink',   hex: '#ff6aa8' },
+  { name: 'blue',   hex: '#6aa8ff' },
+];
+function hashTag(tag){
+  let h = 0;
+  for (let i=0;i<tag.length;i++) h = (h*31 + tag.charCodeAt(i)) >>> 0;
+  return h;
+}
+function tagColorFor(tag, tweaks){
+  if (!tag) return TAG_PALETTE[0].hex;
+  const map = (tweaks && tweaks.tagColors) || {};
+  if (map[tag]) return map[tag];
+  return TAG_PALETTE[hashTag(tag) % TAG_PALETTE.length].hex;
+}
+function collectTags(tasks){
+  const set = new Set();
+  for (const t of tasks) if (t.tag) set.add(t.tag);
+  return Array.from(set).sort();
+}
+
 // --------- state hooks ---------
 function useLocalState(key, initial){
   const [v, setV] = useState(() => {
@@ -163,6 +191,7 @@ function App(){
     try { return localStorage.getItem('taskslayer/install-dismissed') === '1'; } catch { return false; }
   });
   const [search, setSearch] = useState('');
+  const [tagFilter, setTagFilter] = useState(null); // null = all; string = only that tag
   const addTaskInputRef = useRef(null);
   const searchInputRef = useRef(null);
 
@@ -378,6 +407,26 @@ function App(){
   const updateTask = (id, patch) => setTasks(ts => ts.map(t => t.id===id ? {...t, ...patch} : t));
   const deleteTask = (id) => setTasks(ts => ts.filter(t => t.id !== id));
 
+  // --------- Subtask (child) actions ---------
+  const addChild = (taskId, title) => {
+    const trimmed = (title||'').trim();
+    if (!trimmed) return;
+    setTasks(ts => ts.map(t => t.id===taskId
+      ? { ...t, children: [...(t.children||[]), { id: uid(), title: trimmed, done: false }] }
+      : t));
+  };
+  const toggleChild = (taskId, childId) => {
+    setTasks(ts => ts.map(t => {
+      if (t.id !== taskId) return t;
+      return { ...t, children: (t.children||[]).map(c => c.id===childId ? { ...c, done: !c.done } : c) };
+    }));
+  };
+  const deleteChild = (taskId, childId) => {
+    setTasks(ts => ts.map(t => t.id===taskId
+      ? { ...t, children: (t.children||[]).filter(c => c.id !== childId) }
+      : t));
+  };
+
   const flashFace = () => {
     const el = document.querySelector('.face-frame');
     if (el){ el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit'); }
@@ -509,8 +558,9 @@ function App(){
     else result = all;
     const q = search.trim().toLowerCase();
     if (q) result = result.filter(t => (t.title||'').toLowerCase().includes(q));
+    if (tagFilter) result = result.filter(t => t.tag === tagFilter);
     return result;
-  },[tasks, tab, tick, search]);
+  },[tasks, tab, tick, search, tagFilter]);
 
   const counts = useMemo(()=>{
     const today1 = new Date(); today1.setHours(23,59,59,999);
@@ -590,6 +640,34 @@ function App(){
               <Tab id="rewards" current={tab} onClick={setTab} label="ARSENAL" count={rewards.length} hot={ammo>=Math.min(...rewards.map(r=>r.cost))}/>
             </div>
 
+            {flagOn(tweaks, 'tags') && tab !== 'rewards' && (() => {
+              const allTags = collectTags(tasks);
+              if (allTags.length === 0) return null;
+              return (
+                <div className="tag-strip">
+                  <span className="tag-strip-label">TAG&gt;</span>
+                  <button
+                    type="button"
+                    className={"tag-chip all " + (tagFilter===null?'active':'')}
+                    onClick={()=>setTagFilter(null)}
+                  >ALL</button>
+                  {allTags.map(tg => {
+                    const c = tagColorFor(tg, tweaks);
+                    const active = tagFilter === tg;
+                    return (
+                      <button
+                        key={tg}
+                        type="button"
+                        className={"tag-chip " + (active?'active':'')}
+                        style={{ borderColor: c, color: active ? '#000' : c, background: active ? c : 'transparent' }}
+                        onClick={()=>setTagFilter(active ? null : tg)}
+                      >{tg}</button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             {tab === 'rewards' ? (
               <Arsenal
                 rewards={rewards}
@@ -618,6 +696,9 @@ function App(){
                 <TaskRow
                   key={t.id}
                   task={t}
+                  tweaks={tweaks}
+                  subtasksOn={flagOn(tweaks, 'subtasks')}
+                  tagsOn={flagOn(tweaks, 'tags')}
                   onComplete={completeTask}
                   onEdit={()=> setEditing(t)}
                   onDelete={()=> deleteTask(t.id)}
@@ -625,6 +706,9 @@ function App(){
                     const add = t.boss ? 86400000 : 3600000; // boss +1d, others +1h
                     updateTask(t.id, { due: (t.due||now()) + add });
                   }}
+                  onAddChild={(title)=> addChild(t.id, title)}
+                  onToggleChild={(cid)=> toggleChild(t.id, cid)}
+                  onDeleteChild={(cid)=> deleteChild(t.id, cid)}
                 />
               ))}
             </div>
@@ -645,6 +729,10 @@ function App(){
       {editing && (
         <TaskModal
           task={editing.id ? editing : null}
+          tweaks={tweaks}
+          setTweaks={setTweaks}
+          tagsOn={flagOn(tweaks, 'tags')}
+          allTags={collectTags(tasks)}
           onCancel={()=>setEditing(null)}
           onSave={(patch)=>{
             if (editing.id) updateTask(editing.id, patch);
@@ -1015,12 +1103,26 @@ function TaskAddBar({onAdd, inputRef}){
 }
 
 // --------- Task row ---------
-function TaskRow({ task, onComplete, onEdit, onDelete, onSnooze }){
+function TaskRow({ task, tweaks, subtasksOn, tagsOn, onComplete, onEdit, onDelete, onSnooze, onAddChild, onToggleChild, onDeleteChild }){
   const overdue = isOverdue(task);
   const cls = ['task'];
   if (overdue) cls.push('overdue');
   if (task.boss) cls.push('boss');
   if (task.done) cls.push('done');
+  const children = (subtasksOn && Array.isArray(task.children)) ? task.children : [];
+  const childDone = children.filter(c => c.done).length;
+  const hasChildren = children.length > 0;
+  const [expanded, setExpanded] = useState(false);
+  const [newChild, setNewChild] = useState('');
+  const showSubtaskUI = subtasksOn && !task.done;
+  const submitChild = (e) => {
+    e.preventDefault();
+    const t = newChild.trim();
+    if (!t) return;
+    onAddChild(t);
+    setNewChild('');
+  };
+  const tagChipStyle = task.tag ? { borderColor: tagColorFor(task.tag, tweaks), color: tagColorFor(task.tag, tweaks) } : null;
   return (
     <div className={cls.join(' ')}>
       <div className={"checkbox"+(task.boss?' boss':'')} onClick={(e)=>!task.done && onComplete(task, e)} title={task.boss?'HIT BOSS':'FRAG'}>
@@ -1032,12 +1134,49 @@ function TaskRow({ task, onComplete, onEdit, onDelete, onSnooze }){
           {task.boss && <span className="chip boss">BOSS</span>}
           {task.recurrence && task.recurrence!=='none' && <span className="chip rec">⟳ {task.recurrence.toUpperCase()}</span>}
           {overdue && <span className="chip hot">OVERDUE</span>}
+          {tagsOn && task.tag && <span className="chip tag" style={tagChipStyle}># {task.tag}</span>}
+          {subtasksOn && hasChildren && (
+            <button
+              type="button"
+              className="chip sub-toggle"
+              onClick={()=>setExpanded(e=>!e)}
+              title={expanded ? 'Hide subtasks' : 'Show subtasks'}
+            >{expanded ? '▾' : '▸'} STEPS {childDone}/{children.length}</button>
+          )}
         </div>
         {task.boss && !task.done && (
           <>
             <div className="boss-hp"><span style={{width: `${((task.hpLeft||0)/(task.hpMax||1))*100}%`}}/></div>
             <div className="boss-hp-label"><span>BOSS HP</span><span>{task.hpLeft||0}/{task.hpMax||1}</span></div>
           </>
+        )}
+        {showSubtaskUI && expanded && (
+          <div className="subtask-list">
+            {children.map(c => (
+              <div key={c.id} className={"subtask" + (c.done?' done':'')}>
+                <div
+                  className={"sub-checkbox" + (c.done?' on':'')}
+                  onClick={()=>onToggleChild(c.id)}
+                  title={c.done?'Mark not done':'Mark done'}
+                >{c.done ? '✕' : ''}</div>
+                <div className="sub-title">{c.title}</div>
+                <button type="button" className="sub-del" title="Remove step" onClick={()=>onDeleteChild(c.id)}>✕</button>
+              </div>
+            ))}
+            <form className="subtask-add" onSubmit={submitChild}>
+              <span className="sub-plus">+</span>
+              <input
+                className="sub-input"
+                placeholder="add a step…"
+                value={newChild}
+                onChange={e=>setNewChild(e.target.value)}
+              />
+              <button type="submit" className="sub-add-btn" disabled={!newChild.trim()}>ADD</button>
+            </form>
+          </div>
+        )}
+        {showSubtaskUI && !hasChildren && !expanded && (
+          <button type="button" className="sub-open" onClick={()=>setExpanded(true)}>+ ADD STEP</button>
         )}
       </div>
       <div className={"t-due " + (overdue?'hot':'')}>{fmtDue(task.due)}</div>
@@ -1051,12 +1190,18 @@ function TaskRow({ task, onComplete, onEdit, onDelete, onSnooze }){
 }
 
 // --------- Modal (edit) ---------
-function TaskModal({task, onCancel, onSave, onDelete}){
+function TaskModal({task, tweaks, setTweaks, tagsOn, allTags, onCancel, onSave, onDelete}){
   const [title,setTitle]=useState(task?.title || '');
   const [due,setDue]=useState(toLocalInput(task?.due || isoToday(17,0)));
   const [rec,setRec]=useState(task?.recurrence || 'none');
   const [boss,setBoss]=useState(!!task?.boss);
   const [hpMax,setHpMax]=useState(task?.hpMax || 3);
+  const [tag,setTag]=useState(task?.tag || '');
+  const saveTagColor = (tagName, hex) => {
+    if (!tagName) return;
+    setTweaks(t => ({ ...t, tagColors: { ...(t.tagColors||{}), [tagName]: hex } }));
+  };
+  const currentColor = tagColorFor(tag, tweaks);
   return (
     <div className="modal-bg" onClick={onCancel}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -1105,6 +1250,42 @@ function TaskModal({task, onCancel, onSave, onDelete}){
             </div>
           )}
         </div>
+        {tagsOn && (
+          <div className="fld"><label>TAG (OPTIONAL)</label>
+            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <input
+                className="input"
+                list="tag-suggestions"
+                placeholder="e.g. work, home, side-project"
+                value={tag}
+                onChange={e=>setTag(e.target.value.trim().toLowerCase())}
+                style={{flex:1}}
+              />
+              {allTags && allTags.length > 0 && (
+                <datalist id="tag-suggestions">
+                  {allTags.map(t => <option key={t} value={t}/>)}
+                </datalist>
+              )}
+              {tag && (
+                <div style={{width:22,height:22,border:'2px solid var(--ink-deep)',background:currentColor}} title={currentColor}/>
+              )}
+            </div>
+            {tag && (
+              <div className="date-chips" style={{marginTop:6}}>
+                {TAG_PALETTE.map(p => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    className="date-chip"
+                    style={{ borderColor: p.hex, color: currentColor===p.hex ? '#000' : p.hex, background: currentColor===p.hex ? p.hex : 'transparent' }}
+                    onClick={()=>saveTagColor(tag, p.hex)}
+                    title={p.name}
+                  >{p.name.toUpperCase()}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="actions">
           {onDelete && <button className="btn danger" onClick={onDelete}>DELETE</button>}
           <div style={{flex:1}}/>
@@ -1116,6 +1297,7 @@ function TaskModal({task, onCancel, onSave, onDelete}){
               due: fromLocalInput(due),
               recurrence: rec,
               boss,
+              tag: tag.trim() || undefined,
               ...(boss ? {hpMax, hpLeft: task?.hpLeft!=null?Math.min(task.hpLeft,hpMax):hpMax} : {hpMax:undefined, hpLeft:undefined}),
             };
             onSave(patch);
@@ -1129,8 +1311,8 @@ function TaskModal({task, onCancel, onSave, onDelete}){
 // Flag registry — new features append to this list. Defaults are applied when the key is missing.
 // Setting a flag to false in the Tweaks UI lets the user disable a feature live without a redeploy.
 const FLAG_REGISTRY = [
-  // { key: 'notifications', label: 'Notifications', defaultOn: false },
-  // Batches 4–7 will populate this as features land.
+  { key: 'subtasks', label: 'Subtasks', defaultOn: true },
+  { key: 'tags',     label: 'Tags',     defaultOn: true },
 ];
 function flagOn(tweaks, key){
   const entry = FLAG_REGISTRY.find(f => f.key === key);

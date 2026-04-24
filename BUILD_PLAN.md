@@ -68,14 +68,14 @@ If something breaks during a batch: revert that batch's commits and tick the bat
 - Search input above tabs row — case-insensitive title `includes`. Persists across tab switches.
 - Quick-date chips (Today / Tomorrow / Next week) next to date picker.
 
-### ☐ Batch 4 — Subtasks + tags + streaks + achievements + pet evolution (~2 hr, ALL gated by flags, default ON)
-- Subtasks: `children: [{id,title,done}]` on task model. Nested checkbox UI under parent. Optional: boss HP tied to "X of N children done".
-- Tags: optional `tag: string` + color picker in add modal. Filter chip strip below tabs. Color map in `tweaks.tagColors`.
-- Streak counter: new `taskslayer/streak/v1` `{current, best, lastKillDate}`. Render in HUD.
-- Achievements: `taskslayer/achievements/v1` array with ~12 milestones. Toast on unlock. Modal/tab to view.
-- Pet evolution: [cyberdog.jsx](cyberdog.jsx) swaps Rex sprite by level bracket (1–4 / 5–9 / 10+).
-- Flags: `flags.subtasks`, `flags.tags`, `flags.streaks`, `flags.achievements`, `flags.petEvolution` — all default ON.
-- Possible split point: if context gets tight, do subtasks + tags this session, streaks + achievements + evolution next.
+### ◐ Batch 4 — Subtasks + tags + streaks + achievements + pet evolution (~2 hr, ALL gated by flags, default ON)
+**SPLIT:** subtasks + tags done session 4. Streaks + achievements + pet evolution still ☐ (do next session as Batch 4B).
+- ☑ Subtasks: `children: [{id,title,done}]` on task model. Nested checkbox UI under parent — done 2026-04-24.
+- ☑ Tags: optional `tag: string` + color picker in edit modal. Filter chip strip below tabs. Color map in `tweaks.tagColors` — done 2026-04-24.
+- ☐ Streak counter: new `taskslayer/streak/v1` `{current, best, lastKillDate}`. Render in HUD.
+- ☐ Achievements: `taskslayer/achievements/v1` array with ~12 milestones. Toast on unlock. Modal/tab to view.
+- ☐ Pet evolution: [cyberdog.jsx](cyberdog.jsx) swaps Rex sprite by level bracket (1–4 / 5–9 / 10+).
+- Flags: `flags.subtasks`, `flags.tags` registered (default ON). Remaining `flags.streaks`, `flags.achievements`, `flags.petEvolution` next session.
 
 ### ☐ Batch 5 — Browser notifications (~1.5 hr, gated, default OFF)
 - On signed-in render: small "ENABLE ALERTS?" nag → `Notification.requestPermission()`.
@@ -140,6 +140,7 @@ Memory directory: `C:\Users\Owner\.claude\projects\C--Users-Owner-Documents-Clau
 - **2026-04-23 session 1:** Batches 0 + 1 complete. Rollback tag `v1-stable` pushed. Flag registry in place (empty, ready for later batches). Real WebAudio sfx + haptics + canvas-confetti wired into playSfx. Callsites updated for levelup/unlock/death kinds. Verified: console clean, all CDN scripts load, login flow intact. Next session: Batch 2 (PWA polish — app badge, install prompt, manifest shortcuts).
 - **2026-04-24 session 2:** Batch 2 complete. App badge shows overdue count, beforeinstallprompt captured with INSTALL chip in header, manifest shortcuts added, overscroll-behavior:none, dynamic amber theme-color during vacation. SW cache v14. Next session: Batch 3 (keyboard + search + date chips).
 - **2026-04-24 session 3:** Batch 3 complete. Global keyboard shortcuts (n / 1–5 / / / Esc) ignore input fields. Persistent search input above tabs filters task titles. Quick-date chips (TODAY/TOMORROW/NEXT WEEK) added next to DUE field in edit modal. SW cache v15. Next session: Batch 4 (subtasks + tags + streaks + achievements + pet evolution — flag-gated, possible split point).
+- **2026-04-24 session 4:** Batch 4A (subtasks + tags) complete — used the planned split point. Subtasks: inline expand/collapse with nested checkboxes, add-step input, STEPS n/m counter chip; flag `subtasks` default ON. Tags: lowercase single tag per task, 8-color palette with per-tag color map in `tweaks.tagColors`, filter strip below tabs with ALL/tag chips, datalist suggestions from existing tags; flag `tags` default ON. Flags now visible in Tweaks panel. SW cache v16, app.jsx?v=8. Next session: Batch 4B (streaks + achievements + pet evolution).
 
 ---
 
@@ -148,4 +149,4 @@ Big-stuff items deferred: shared lists, co-op bosses, public profiles/leaderboar
 
 ---
 
-**Last touched:** 2026-04-24 — batch 3 done. Next up: Batch 4 (subtasks + tags + streaks + achievements + pet evolution — flag-gated; possible split point).
+**Last touched:** 2026-04-24 — batch 4A (subtasks + tags) done; batch 4 split. Next up: Batch 4B (streaks + achievements + pet evolution — flag-gated).

@@ -19,7 +19,7 @@
   const BABEL_SCRIPTS = [
     { src: 'faces.jsx?v=5' },
     { src: 'cyberdog.jsx?v=5' },
-    { src: 'app.jsx?v=7' },
+    { src: 'app.jsx?v=8' },
   ];
 
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {

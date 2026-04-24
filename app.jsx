@@ -390,11 +390,21 @@ function App(){
     }
   },[overdueCount]);
 
-  // Dynamic theme-color — amber during vacation, green otherwise
+  // Apply data-theme attribute to <html> for CSS variable swap
+  useEffect(()=>{
+    const t = flagOn(tweaks, 'altTheme') ? (tweaks.theme || 'green') : 'green';
+    document.documentElement.setAttribute('data-theme', t);
+  },[tweaks.theme, tweaks.flags]);
+
+  // Dynamic theme-color — amber during vacation, otherwise match active theme bg
   useEffect(()=>{
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', vacation ? '#ffb347' : '#030a03');
-  },[vacation]);
+    if (!meta) return;
+    if (vacation) { meta.setAttribute('content', '#ffb347'); return; }
+    const t = flagOn(tweaks, 'altTheme') ? (tweaks.theme || 'green') : 'green';
+    const bg = t === 'amber' ? '#080500' : t === 'red' ? '#080000' : '#030a03';
+    meta.setAttribute('content', bg);
+  },[vacation, tweaks.theme, tweaks.flags]);
 
   // Browser notifications — fire when tasks cross their due time
   useEffect(() => {
@@ -1643,6 +1653,7 @@ const FLAG_REGISTRY = [
   { key: 'longPressBoss',  label: 'Long-press → Boss',   defaultOn: true  },
   { key: 'bottomNav',      label: 'Bottom nav (mobile)', defaultOn: false },
   { key: 'voiceInput',     label: 'Voice input',         defaultOn: false },
+  { key: 'altTheme',      label: 'Alt themes',          defaultOn: true  },
 ];
 function flagOn(tweaks, key){
   const entry = FLAG_REGISTRY.find(f => f.key === key);
@@ -1673,6 +1684,16 @@ function TweaksPanel({ tweaks, onChange, onClose }){
           <div className="knob"/>
         </div>
       </div>
+      {flagOn(tweaks, 'altTheme') && (
+        <div className="tweak-row" style={{flexDirection:'column',alignItems:'stretch',gap:6}}>
+          <span>Theme</span>
+          <div className="seg">
+            {[['green','GREEN'],['amber','AMBER'],['red','RED']].map(([k,l])=>(
+              <button key={k} className={(tweaks.theme||'green')===k?'on':''} onClick={()=>onChange({theme:k})} style={{flex:1}}>{l}</button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="tweak-row" style={{flexDirection:'column',alignItems:'stretch',gap:6,display:'none'}}>
         <span>Face style</span>
         <div className="seg">

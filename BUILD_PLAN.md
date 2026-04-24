@@ -56,7 +56,7 @@ If something breaks during a batch: revert that batch's commits and tick the bat
 - Add `navigator.vibrate(...)` calls alongside each sfx (15ms tap, 50/30/80 boss, longer for level up).
 - Pull in `canvas-confetti` from CDN; trigger on boss kills + level ups.
 
-### ☐ Batch 2 — PWA polish (~30 min, no flags)
+### ☑ Batch 2 — PWA polish (~30 min, no flags) — done 2026-04-24, sha 41e3d74
 - App badge: `useEffect` calls `navigator.setAppBadge(overdueCount)` / `clearAppBadge()`.
 - `beforeinstallprompt` capture → small "📲 INSTALL" chip in screen header. Hide once installed/dismissed.
 - Edit [manifest.webmanifest](manifest.webmanifest) — add `shortcuts` array (Add task / Today / Bosses).
@@ -138,6 +138,7 @@ Memory directory: `C:\Users\Owner\.claude\projects\C--Users-Owner-Documents-Clau
 (Each session appends a line here when ticking a batch.)
 
 - **2026-04-23 session 1:** Batches 0 + 1 complete. Rollback tag `v1-stable` pushed. Flag registry in place (empty, ready for later batches). Real WebAudio sfx + haptics + canvas-confetti wired into playSfx. Callsites updated for levelup/unlock/death kinds. Verified: console clean, all CDN scripts load, login flow intact. Next session: Batch 2 (PWA polish — app badge, install prompt, manifest shortcuts).
+- **2026-04-24 session 2:** Batch 2 complete. App badge shows overdue count, beforeinstallprompt captured with INSTALL chip in header, manifest shortcuts added, overscroll-behavior:none, dynamic amber theme-color during vacation. SW cache v14. Next session: Batch 3 (keyboard + search + date chips).
 
 ---
 
@@ -146,4 +147,4 @@ Big-stuff items deferred: shared lists, co-op bosses, public profiles/leaderboar
 
 ---
 
-**Last touched:** 2026-04-23 — batches 0 + 1 done. Next up: Batch 2 (PWA polish).
+**Last touched:** 2026-04-24 — batch 2 done. Next up: Batch 3 (keyboard + search + date chips).

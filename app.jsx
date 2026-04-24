@@ -272,8 +272,8 @@ function App(){
     if (level > prevLevelRef.current) {
       const rank = rankFor(level);
       setLevelUpFx({ level, title: rank });
-      // play boss sfx as celebration
-      playSfx(tweaks.sfxOn, 'boss', window.innerWidth/2, window.innerHeight/3);
+      // play level-up fanfare
+      playSfx(tweaks.sfxOn, 'levelup', window.innerWidth/2, window.innerHeight/3);
       setTimeout(() => setLevelUpFx(null), 3000);
     }
     prevLevelRef.current = level;
@@ -295,7 +295,7 @@ function App(){
       //  Target: HP ~= 50. overdue damage roughly = (100 - baseline). Easiest: just force
       //  medpacks to 50, user can still take damage again from overdue tasks tomorrow.)
       setMedpacks(50);
-      playSfx(tweaks.sfxOn, 'hit', window.innerWidth/2, window.innerHeight/2);
+      playSfx(tweaks.sfxOn, 'death', window.innerWidth/2, window.innerHeight/2);
     }
     prevHpRef.current = hp;
   }, [hp, level, deathFx, tweaks.sfxOn]);
@@ -494,7 +494,7 @@ function App(){
                   if (ammo < r.cost) return;
                   setAmmo(a => a - r.cost);
                   setUnlockFx({ name: r.name, icon: r.icon, ts: Date.now() });
-                  playSfx(tweaks.sfxOn, 'boss', window.innerWidth/2, window.innerHeight/2);
+                  playSfx(tweaks.sfxOn, 'unlock', window.innerWidth/2, window.innerHeight/2);
                   setTimeout(()=> setUnlockFx(null), 2200);
                 }}
               />
@@ -1037,7 +1037,7 @@ function TweaksPanel({ tweaks, onChange, onClose }){
         </div>
       </div>
       <div className="tweak-row">
-        <span>SFX (visual)</span>
+        <span>SFX (sound + buzz)</span>
         <div className={"switch "+(tweaks.sfxOn?'on':'')} onClick={()=>onChange({sfxOn:!tweaks.sfxOn})}>
           <div className="knob"/>
         </div>
@@ -1111,12 +1111,98 @@ function playBark(on, kind){
 }
 
 // --------- Visual "SFX" (on-screen text) ---------
+// Fire confetti if canvas-confetti is loaded; silent no-op otherwise.
+function burstConfetti(kind){
+  if (typeof window.confetti !== 'function') return;
+  const base = { spread: 70, ticks: 120, gravity: 1.2, origin: { y: 0.6 } };
+  if (kind === 'levelup'){
+    window.confetti({ ...base, particleCount: 140, spread: 100, startVelocity: 55, colors: ['#ffbf7a','#ff7a1a','#39ff14','#aaff6a'] });
+  } else if (kind === 'boss'){
+    window.confetti({ ...base, particleCount: 100, spread: 90, colors: ['#ffb347','#ff3b2f','#39ff14'] });
+  } else if (kind === 'unlock'){
+    window.confetti({ ...base, particleCount: 60, colors: ['#aaff6a','#39ff14','#1f8f10'] });
+  }
+}
+
+// Triggers `navigator.vibrate` if supported. Silent no-op on desktop/iOS Safari.
+function buzz(pattern){
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch {}
+}
+
+// Map each sfx kind to an oscillator pattern. Uses the same `getAudio()` helper as playBark.
+function toneForKind(kind){
+  // Each step: {f=freq hz, d=duration s, gap=pause s before, type='square'|'sawtooth'|'sine'|'triangle', slide=end freq, vol=0..1}
+  switch (kind){
+    case 'frag':    return [{ f: 880, d: 0.06, type: 'square',   slide: 220, vol: 0.18 }]; // laser zap
+    case 'hit':     return [{ f: 160, d: 0.09, type: 'sawtooth', slide: 70,  vol: 0.28 }]; // thud
+    case 'boss':    return [                                                                // explosion-ish
+                      { f: 180, d: 0.12, type: 'sawtooth', slide: 60,  vol: 0.32 },
+                      { f: 90,  d: 0.20, type: 'square',   slide: 40,  vol: 0.28, gap: 0.02 },
+                    ];
+    case 'levelup': return [                                                                // 3-note fanfare
+                      { f: 523, d: 0.10, type: 'square', slide: 523, vol: 0.22 }, // C5
+                      { f: 659, d: 0.10, type: 'square', slide: 659, vol: 0.22, gap: 0.02 }, // E5
+                      { f: 784, d: 0.18, type: 'square', slide: 784, vol: 0.26, gap: 0.02 }, // G5
+                    ];
+    case 'unlock':  return [                                                                // bright chime
+                      { f: 660, d: 0.08, type: 'triangle', slide: 660, vol: 0.20 },
+                      { f: 990, d: 0.14, type: 'triangle', slide: 990, vol: 0.22, gap: 0.02 },
+                    ];
+    case 'death':   return [                                                                // descending sad blip
+                      { f: 300, d: 0.14, type: 'square', slide: 130, vol: 0.26 },
+                      { f: 180, d: 0.22, type: 'square', slide: 70,  vol: 0.24, gap: 0.05 },
+                    ];
+    default: return null;
+  }
+}
+
+function playTone(kind){
+  const ctx = getAudio(); if (!ctx) return;
+  const pattern = toneForKind(kind); if (!pattern) return;
+  let t = ctx.currentTime;
+  pattern.forEach(step => {
+    t += step.gap || 0;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = step.type || 'square';
+    osc.frequency.setValueAtTime(step.f, t);
+    if (step.slide && step.slide !== step.f){
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, step.slide), t + step.d);
+    }
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(step.vol || 0.2, t + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + step.d);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + step.d + 0.02);
+    t += step.d;
+  });
+}
+
 function playSfx(on, kind, x, y){
   if (!on) return;
+  // Audio
+  playTone(kind);
+  // Haptics
+  const buzzMap = {
+    frag:    15,
+    hit:     [10, 20, 10],
+    boss:    [50, 30, 80],
+    levelup: [40, 40, 40, 40, 80],
+    unlock:  [20, 40, 30],
+    death:   [120, 60, 120],
+  };
+  if (buzzMap[kind]) buzz(buzzMap[kind]);
+  // Confetti on the celebratory kinds
+  if (kind === 'boss' || kind === 'levelup' || kind === 'unlock') burstConfetti(kind);
+  // Visual text bubble (original behavior)
   const words = {
-    frag: ['BLAM!','PEW!','KA-POW!','FRAG!','ZAP!'],
-    hit:  ['THWACK!','WHUMP!','CRUNCH!'],
-    boss: ['BOOOM!','MEGA-FRAG!','VICTORY!','CRUSHED!'],
+    frag:    ['BLAM!','PEW!','KA-POW!','FRAG!','ZAP!'],
+    hit:     ['THWACK!','WHUMP!','CRUNCH!'],
+    boss:    ['BOOOM!','MEGA-FRAG!','VICTORY!','CRUSHED!'],
+    levelup: ['LEVEL UP!','RANK UP!','PROMOTED!'],
+    unlock:  ['UNLOCKED!','WEAPON!','ARMED!'],
+    death:   ['K.O.','DOWN!','BUSTED!'],
   }[kind] || ['POW!'];
   const txt = words[Math.floor(Math.random()*words.length)];
   const el = document.createElement('div');

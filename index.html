@@ -355,6 +355,34 @@
   }
   .empty .big{font-family:'Press Start 2P',monospace;font-size:14px;color:var(--ink-hot);display:block;margin-bottom:10px;letter-spacing:2px}
 
+  /* Search bar */
+  .search-bar{
+    display:flex;align-items:center;gap:6px;
+    border:2px solid var(--ink-deep);background:#020a02;
+    padding:4px 8px;margin-bottom:8px;
+  }
+  .search-bar .search-prompt{
+    font-family:'Press Start 2P',monospace;font-size:8px;color:var(--ink-dim);letter-spacing:1px;
+  }
+  .search-bar .search-input{
+    flex:1;border:none;background:transparent;font-size:18px;padding:2px 0;
+  }
+  .search-bar .search-input:focus{box-shadow:none}
+  .search-bar .search-clear{
+    background:transparent;border:1px solid var(--ink-deep);color:var(--ink-dim);
+    cursor:pointer;font-family:'Press Start 2P',monospace;font-size:8px;padding:4px 6px;
+  }
+  .search-bar .search-clear:hover{color:var(--ink-hot);border-color:var(--ink-dim)}
+
+  /* Date chips (modal quick-set) */
+  .date-chips{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+  .date-chip{
+    font-family:'Press Start 2P',monospace;font-size:7px;letter-spacing:1px;
+    padding:5px 7px;background:#051805;color:var(--ink-dim);
+    border:1px solid var(--ink-deep);cursor:pointer;text-transform:uppercase;
+  }
+  .date-chip:hover{color:var(--ink-hot);border-color:var(--ink-dim);background:#0a2a0a}
+
   /* Tabs */
   .tabs{display:flex;gap:0;border-bottom:2px solid var(--ink-deep);margin-bottom:10px}
   .tab{

@@ -162,6 +162,9 @@ function App(){
   const [installDismissed, setInstallDismissed] = useState(() => {
     try { return localStorage.getItem('taskslayer/install-dismissed') === '1'; } catch { return false; }
   });
+  const [search, setSearch] = useState('');
+  const addTaskInputRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   const startVacation = () => {
     setVacation({ startedAt: Date.now() });
@@ -232,6 +235,37 @@ function App(){
     const id = setInterval(()=> setTick(t=>t+1), 15000);
     return ()=>clearInterval(id);
   },[]);
+
+  // Global keyboard shortcuts: n / 1-5 / / / Escape
+  useEffect(()=>{
+    const TAB_ORDER = ['today','upcoming','bosses','done','rewards'];
+    const handler = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      const tag = (t && t.tagName || '').toLowerCase();
+      const inField = tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable);
+      if (e.key === 'Escape') {
+        if (editing) { setEditing(null); return; }
+        if (editMode) { setEditMode(false); return; }
+        if (faceMenu) { setFaceMenu(false); return; }
+        if (inField && t.blur) t.blur();
+        return;
+      }
+      if (inField) return;
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        addTaskInputRef.current && addTaskInputRef.current.focus();
+      } else if (e.key === '/') {
+        e.preventDefault();
+        searchInputRef.current && searchInputRef.current.focus();
+      } else if (e.key >= '1' && e.key <= '5') {
+        const idx = parseInt(e.key, 10) - 1;
+        setTab(TAB_ORDER[idx]);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return ()=> window.removeEventListener('keydown', handler);
+  },[editing, editMode, faceMenu]);
 
   // Cyberdog decay tick — every 15s, advance stats (paused during vacation)
   const vacationRef = useRef(null);
@@ -467,12 +501,16 @@ function App(){
     });
     const today0 = new Date(); today0.setHours(0,0,0,0);
     const today1 = new Date(); today1.setHours(23,59,59,999);
-    if (tab==='today') return all.filter(t=>!t.done && t.due && t.due <= today1.getTime());
-    if (tab==='upcoming') return all.filter(t=>!t.done && t.due && t.due > today1.getTime());
-    if (tab==='bosses') return all.filter(t=>t.boss && !t.done);
-    if (tab==='done') return all.filter(t=>t.done);
-    return all;
-  },[tasks, tab, tick]);
+    let result;
+    if (tab==='today') result = all.filter(t=>!t.done && t.due && t.due <= today1.getTime());
+    else if (tab==='upcoming') result = all.filter(t=>!t.done && t.due && t.due > today1.getTime());
+    else if (tab==='bosses') result = all.filter(t=>t.boss && !t.done);
+    else if (tab==='done') result = all.filter(t=>t.done);
+    else result = all;
+    const q = search.trim().toLowerCase();
+    if (q) result = result.filter(t => (t.title||'').toLowerCase().includes(q));
+    return result;
+  },[tasks, tab, tick, search]);
 
   const counts = useMemo(()=>{
     const today1 = new Date(); today1.setHours(23,59,59,999);
@@ -528,7 +566,21 @@ function App(){
           </div>
 
           <div className="screen-body">
-            <TaskAddBar onAdd={addTask}/>
+            <TaskAddBar onAdd={addTask} inputRef={addTaskInputRef}/>
+
+            <div className="search-bar">
+              <span className="search-prompt">FIND&gt;</span>
+              <input
+                ref={searchInputRef}
+                className="input search-input"
+                placeholder="filter targets… (press / to focus)"
+                value={search}
+                onChange={e=>setSearch(e.target.value)}
+              />
+              {search && (
+                <button type="button" className="search-clear" title="Clear search" onClick={()=>setSearch('')}>✕</button>
+              )}
+            </div>
 
             <div className="tabs">
               <Tab id="today" current={tab} onClick={setTab} label="TODAY" count={counts.today}/>
@@ -899,7 +951,7 @@ function PixelDatePicker({value, onChange}){
 }
 
 // --------- Add bar ---------
-function TaskAddBar({onAdd}){
+function TaskAddBar({onAdd, inputRef}){
   const [title,setTitle] = useState('');
   const [dueDay,setDueDay] = useState('today');
   const [customDate,setCustomDate] = useState(() => {
@@ -935,7 +987,7 @@ function TaskAddBar({onAdd}){
   };
   return (
     <form className="add-bar" onSubmit={submit}>
-      <input className="input" placeholder="> ENTER NEW TARGET_" value={title} onChange={e=>setTitle(e.target.value)} />
+      <input ref={inputRef} className="input" placeholder="> ENTER NEW TARGET_" value={title} onChange={e=>setTitle(e.target.value)} />
       <select className="input" value={dueDay} onChange={e=>setDueDay(e.target.value)}>
         <option value="today">DUE TODAY 17:00</option>
         <option value="tomorrow">TOMORROW 12:00</option>
@@ -1016,6 +1068,20 @@ function TaskModal({task, onCancel, onSave, onDelete}){
         <div className="row">
           <div className="fld"><label>DUE</label>
             <input className="input" type="datetime-local" value={due} onChange={e=>setDue(e.target.value)}/>
+            <div className="date-chips">
+              <button type="button" className="date-chip" onClick={()=>{
+                const d = new Date(); d.setHours(17,0,0,0);
+                setDue(toLocalInput(d.getTime()));
+              }}>TODAY</button>
+              <button type="button" className="date-chip" onClick={()=>{
+                const d = new Date(); d.setDate(d.getDate()+1); d.setHours(12,0,0,0);
+                setDue(toLocalInput(d.getTime()));
+              }}>TOMORROW</button>
+              <button type="button" className="date-chip" onClick={()=>{
+                const d = new Date(); d.setDate(d.getDate()+7); d.setHours(12,0,0,0);
+                setDue(toLocalInput(d.getTime()));
+              }}>NEXT WEEK</button>
+            </div>
           </div>
           <div className="fld"><label>RECURRENCE</label>
             <select className="input" value={rec} onChange={e=>setRec(e.target.value)}>

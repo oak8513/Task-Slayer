@@ -227,6 +227,13 @@ function App(){
   const tasksRef = useRef(tasks);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
+  // Batch 6: mobile UX state
+  const [undoTask, setUndoTask] = useState(null);
+  const undoTimerRef = useRef(null);
+  const [bossConvertTask, setBossConvertTask] = useState(null);
+  const [bossConvertHp, setBossConvertHp] = useState(3);
+  const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
+
   const startVacation = () => {
     setVacation({ startedAt: Date.now() });
     setFaceMenu(false);
@@ -492,10 +499,30 @@ function App(){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [killStats, streak, level, achievements]);
 
+  useEffect(() => {
+    const h = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+
   // --------- Task actions ---------
   const addTask = (t) => setTasks(ts => [...ts, {id: uid(), done:false, ...t}]);
   const updateTask = (id, patch) => setTasks(ts => ts.map(t => t.id===id ? {...t, ...patch} : t));
   const deleteTask = (id) => setTasks(ts => ts.filter(t => t.id !== id));
+  const deleteTaskWithUndo = (id) => {
+    const taskObj = tasks.find(t => t.id === id);
+    deleteTask(id);
+    if (!taskObj) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoTask(taskObj);
+    undoTimerRef.current = setTimeout(() => { setUndoTask(null); undoTimerRef.current = null; }, 5000);
+  };
+  const restoreUndoTask = () => {
+    if (!undoTask) return;
+    if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
+    setTasks(ts => [...ts, undoTask]);
+    setUndoTask(null);
+  };
 
   // --------- Subtask (child) actions ---------
   const addChild = (taskId, title) => {
@@ -678,6 +705,8 @@ function App(){
   },[tasks, tick]);
 
   const faceState = healthToFaceState(hp);
+  const isMobile = windowWidth < 600;
+  const bottomNavActive = flagOn(tweaks, 'bottomNav') && isMobile;
 
   const handleInstall = async () => {
     if (!installPrompt) return;
@@ -734,8 +763,8 @@ function App(){
             </div>
           </div>
 
-          <div className="screen-body">
-            <TaskAddBar onAdd={addTask} inputRef={addTaskInputRef}/>
+          <div className="screen-body" style={bottomNavActive ? {paddingBottom:72} : undefined}>
+            <TaskAddBar onAdd={addTask} inputRef={addTaskInputRef} voiceInputOn={flagOn(tweaks,'voiceInput')}/>
 
             <div className="search-bar">
               <span className="search-prompt">FIND&gt;</span>
@@ -751,7 +780,7 @@ function App(){
               )}
             </div>
 
-            <div className="tabs">
+            <div className="tabs" style={bottomNavActive ? {display:'none'} : undefined}>
               <Tab id="today" current={tab} onClick={setTab} label="TODAY" count={counts.today}/>
               <Tab id="upcoming" current={tab} onClick={setTab} label="UPCOMING" count={counts.upcoming}/>
               <Tab id="bosses" current={tab} onClick={setTab} label="BOSSES" count={counts.bosses}/>
@@ -828,6 +857,10 @@ function App(){
                   onAddChild={(title)=> addChild(t.id, title)}
                   onToggleChild={(cid)=> toggleChild(t.id, cid)}
                   onDeleteChild={(cid)=> deleteChild(t.id, cid)}
+                  swipeActionsOn={flagOn(tweaks, 'swipeActions')}
+                  longPressBossOn={flagOn(tweaks, 'longPressBoss')}
+                  onSwipeDelete={()=> deleteTaskWithUndo(t.id)}
+                  onLongPress={()=>{ setBossConvertHp(3); setBossConvertTask(t); }}
                 />
               ))}
             </div>
@@ -849,7 +882,45 @@ function App(){
              unlockedCount={Object.keys(achievements.unlocked).length}
              onShowAch={()=>setShowAch(true)}
              petEvolutionOn={flagOn(tweaks,'petEvolution')}/>
+
+        {bottomNavActive && (
+          <div className="bottom-nav">
+            <Tab id="today" current={tab} onClick={setTab} label="TODAY" count={counts.today}/>
+            <Tab id="upcoming" current={tab} onClick={setTab} label="UPCOMING" count={counts.upcoming}/>
+            <Tab id="bosses" current={tab} onClick={setTab} label="BOSSES" count={counts.bosses}/>
+            <Tab id="done" current={tab} onClick={setTab} label="FRAGGED" count={counts.done}/>
+            <Tab id="rewards" current={tab} onClick={setTab} label="ARSENAL" count={rewards.length} hot={ammo>=Math.min(...rewards.map(r=>r.cost))}/>
+          </div>
+        )}
       </div>
+
+      {undoTask && (
+        <div className="undo-toast">
+          <span>DELETED: {undoTask.title.length > 28 ? undoTask.title.slice(0,28)+'…' : undoTask.title}</span>
+          <button className="btn ghost" style={{fontSize:8,padding:'3px 8px'}} onClick={restoreUndoTask}>UNDO</button>
+          <span style={{cursor:'pointer',opacity:0.6,marginLeft:4}} onClick={()=>{ if(undoTimerRef.current){clearTimeout(undoTimerRef.current);undoTimerRef.current=null;} setUndoTask(null); }}>✕</span>
+        </div>
+      )}
+
+      {bossConvertTask && (
+        <div className="modal-bg" onClick={()=>setBossConvertTask(null)}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <h3>PROMOTE TO BOSS?</h3>
+            <p style={{color:'var(--ink)',fontSize:11,marginBottom:10,lineHeight:1.6}}>{bossConvertTask.title}</p>
+            <div className="fld">
+              <label>BOSS HP</label>
+              <input className="input" type="number" min={1} max={99} value={bossConvertHp} onChange={e=>setBossConvertHp(Math.max(1,parseInt(e.target.value)||1))}/>
+            </div>
+            <div className="actions">
+              <button className="btn ghost" onClick={()=>setBossConvertTask(null)}>CANCEL</button>
+              <button className="btn boss" onClick={()=>{
+                updateTask(bossConvertTask.id,{boss:true,hpMax:bossConvertHp,hpLeft:bossConvertHp});
+                setBossConvertTask(null);
+              }}>★ MAKE BOSS</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <TaskModal
@@ -1186,7 +1257,7 @@ function PixelDatePicker({value, onChange}){
 }
 
 // --------- Add bar ---------
-function TaskAddBar({onAdd, inputRef}){
+function TaskAddBar({onAdd, inputRef, voiceInputOn}){
   const [title,setTitle] = useState('');
   const [dueDay,setDueDay] = useState('today');
   const [customDate,setCustomDate] = useState(() => {
@@ -1196,6 +1267,34 @@ function TaskAddBar({onAdd, inputRef}){
   });
   const [rec,setRec] = useState('none');
   const [isBoss,setIsBoss] = useState(false);
+  const [listening, setListening] = useState(false);
+  const srRef = useRef(null);
+
+  const startVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    if (listening) { srRef.current?.stop(); setListening(false); return; }
+    const sr = new SR();
+    sr.lang = 'en-US';
+    sr.interimResults = false;
+    sr.maxAlternatives = 1;
+    sr.onresult = (e) => {
+      const text = e.results[0][0].transcript.trim();
+      const lower = text.toLowerCase();
+      let parsed = text;
+      let day = null;
+      if (/\bnext\s+week\b/.test(lower)) { parsed = text.replace(/\bnext\s+week\b/gi,'').trim(); day = 'next-week'; }
+      else if (/\btomorrow\b/.test(lower)) { parsed = text.replace(/\btomorrow\b/gi,'').trim(); day = 'tomorrow'; }
+      else if (/\btoday\b/.test(lower)) { parsed = text.replace(/\btoday\b/gi,'').trim(); day = 'today'; }
+      setTitle(parsed || text);
+      if (day) setDueDay(day);
+      setListening(false);
+    };
+    sr.onerror = () => setListening(false);
+    sr.onend = () => setListening(false);
+    srRef.current = sr;
+    try { sr.start(); setListening(true); } catch(ignored) { setListening(false); }
+  };
   const submit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -1240,6 +1339,11 @@ function TaskAddBar({onAdd, inputRef}){
         <option value="monthly">RECURRING • MONTHLY</option>
       </select>
       <div style={{display:'flex',gap:6}}>
+        {voiceInputOn && !!(window.SpeechRecognition || window.webkitSpeechRecognition) && (
+          <button type="button" className="btn ghost" onClick={startVoice} title="Voice input" style={listening ? {color:'var(--amber)',borderColor:'var(--amber)'} : {}}>
+            {listening ? '⬤' : '🎙'}
+          </button>
+        )}
         <button type="button" className={"btn "+(isBoss?'boss':'ghost')} onClick={()=>setIsBoss(b=>!b)}>
           {isBoss?'★ BOSS':'+ BOSS'}
         </button>
@@ -1250,7 +1354,7 @@ function TaskAddBar({onAdd, inputRef}){
 }
 
 // --------- Task row ---------
-function TaskRow({ task, tweaks, subtasksOn, tagsOn, onComplete, onEdit, onDelete, onSnooze, onAddChild, onToggleChild, onDeleteChild }){
+function TaskRow({ task, tweaks, subtasksOn, tagsOn, onComplete, onEdit, onDelete, onSnooze, onAddChild, onToggleChild, onDeleteChild, swipeActionsOn, longPressBossOn, onSwipeDelete, onLongPress }){
   const overdue = isOverdue(task);
   const cls = ['task'];
   if (overdue) cls.push('overdue');
@@ -1270,8 +1374,79 @@ function TaskRow({ task, tweaks, subtasksOn, tagsOn, onComplete, onEdit, onDelet
     setNewChild('');
   };
   const tagChipStyle = task.tag ? { borderColor: tagColorFor(task.tag, tweaks), color: tagColorFor(task.tag, tweaks) } : null;
+
+  // Swipe + long-press state
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const swipeState = useRef(null);
+  const longPressTimer = useRef(null);
+
+  const clearLP = () => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
+
+  const handlePointerDown = (e) => {
+    const onInteractive = e.target.closest('button,input,a,select,textarea');
+    if (onInteractive) return;
+    if (longPressBossOn && !task.boss && !task.done) {
+      longPressTimer.current = setTimeout(() => {
+        clearLP();
+        onLongPress && onLongPress();
+      }, 600);
+    }
+    if (swipeActionsOn) {
+      swipeState.current = { startX: e.clientX, startY: e.clientY, capturing: false };
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    clearLP();
+    if (!swipeActionsOn || !swipeState.current) return;
+    const dx = e.clientX - swipeState.current.startX;
+    const dy = e.clientY - swipeState.current.startY;
+    if (!swipeState.current.capturing) {
+      if (Math.abs(dy) > Math.abs(dx) + 5) { swipeState.current = null; return; }
+      if (Math.abs(dx) > 8) {
+        swipeState.current.capturing = true;
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch(ignored) {}
+      }
+    }
+    if (swipeState.current?.capturing) setSwipeOffset(dx);
+  };
+
+  const handlePointerUp = (e) => {
+    clearLP();
+    if (!swipeActionsOn || !swipeState.current) { swipeState.current = null; return; }
+    const dx = e.clientX - swipeState.current.startX;
+    swipeState.current = null;
+    setSwipeOffset(0);
+    if (dx <= -80 && !task.done) { onSwipeDelete && onSwipeDelete(); }
+    else if (dx >= 80 && !task.done) { onComplete && onComplete(task, e); }
+  };
+
+  const handlePointerCancel = () => {
+    clearLP();
+    swipeState.current = null;
+    setSwipeOffset(0);
+  };
+
+  const rowStyle = {};
+  if (swipeActionsOn) {
+    if (swipeOffset !== 0) {
+      rowStyle.transform = `translateX(${swipeOffset}px)`;
+      rowStyle.transition = 'none';
+      rowStyle.opacity = Math.max(0.35, 1 - Math.abs(swipeOffset) / 200);
+    } else {
+      rowStyle.transition = 'transform 0.25s ease, opacity 0.25s ease';
+    }
+  }
+
   return (
-    <div className={cls.join(' ')}>
+    <div
+      className={cls.join(' ')}
+      style={rowStyle}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+    >
       <div className={"checkbox"+(task.boss?' boss':'')} onClick={(e)=>!task.done && onComplete(task, e)} title={task.boss?'HIT BOSS':'FRAG'}>
         {task.done ? '✕' : task.boss ? '★' : ''}
       </div>
@@ -1458,12 +1633,16 @@ function TaskModal({task, tweaks, setTweaks, tagsOn, allTags, onCancel, onSave, 
 // Flag registry — new features append to this list. Defaults are applied when the key is missing.
 // Setting a flag to false in the Tweaks UI lets the user disable a feature live without a redeploy.
 const FLAG_REGISTRY = [
-  { key: 'subtasks',      label: 'Subtasks',          defaultOn: true  },
-  { key: 'tags',          label: 'Tags',               defaultOn: true  },
-  { key: 'streaks',       label: 'Streak counter',     defaultOn: true  },
-  { key: 'achievements',  label: 'Achievements',       defaultOn: true  },
-  { key: 'petEvolution',  label: 'Pet evolution',      defaultOn: true  },
-  { key: 'notifications', label: 'Browser alerts',     defaultOn: false },
+  { key: 'subtasks',       label: 'Subtasks',            defaultOn: true  },
+  { key: 'tags',           label: 'Tags',                defaultOn: true  },
+  { key: 'streaks',        label: 'Streak counter',      defaultOn: true  },
+  { key: 'achievements',   label: 'Achievements',        defaultOn: true  },
+  { key: 'petEvolution',   label: 'Pet evolution',       defaultOn: true  },
+  { key: 'notifications',  label: 'Browser alerts',      defaultOn: false },
+  { key: 'swipeActions',   label: 'Swipe to act',        defaultOn: false },
+  { key: 'longPressBoss',  label: 'Long-press → Boss',   defaultOn: true  },
+  { key: 'bottomNav',      label: 'Bottom nav (mobile)', defaultOn: false },
+  { key: 'voiceInput',     label: 'Voice input',         defaultOn: false },
 ];
 function flagOn(tweaks, key){
   const entry = FLAG_REGISTRY.find(f => f.key === key);

@@ -3,12 +3,13 @@
 
 const DOG_LS = 'taskslayer/cyberdog/v2';
 
-// decay rates per real-minute (tuned so neglect over ~4–8h starts to hurt)
+// decay rates per real-minute (tuned so neglect over ~12–24h starts to hurt)
 const DECAY = {
-  hunger: 0.18,     // -% per minute (reaches 0 in ~9h from full)
-  mood:   0.12,
-  energy: 0.10,
-  overdueBoost: 0.35, // extra hunger/mood drain per minute per overdue task
+  hunger: 0.09,     // -% per minute (reaches 0 in ~18h from full)
+  mood:   0.06,
+  energy: 0.05,
+  overdueBoost: 0.08,    // extra hunger/mood drain per minute per overdue task
+  overdueBoostMax: 1.0,  // cap total boost so a huge backlog can't insta-kill
 };
 
 const FEED_PER_TASK = 8;   // % hunger restored per task completion
@@ -60,7 +61,7 @@ function advanceDog(dog, now, overdueCount){
   if (!dog.alive) return dog;
   const dtMin = (now - (dog.lastTick || now)) / 60000;
   if (dtMin <= 0) return { ...dog, lastTick: now };
-  const boost = 1 + overdueCount * (DECAY.overdueBoost);
+  const boost = 1 + Math.min(overdueCount * DECAY.overdueBoost, DECAY.overdueBoostMax);
   let hunger = clamp(dog.hunger - DECAY.hunger * dtMin * boost);
   let mood   = clamp(dog.mood   - DECAY.mood   * dtMin * boost);
   let energy = clamp(dog.energy - (dog.asleep ? -DECAY.energy*3 : DECAY.energy) * dtMin);

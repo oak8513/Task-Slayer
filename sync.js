@@ -18,7 +18,7 @@
   }
   const BABEL_SCRIPTS = [
     { src: 'faces.jsx?v=5' },
-    { src: 'cyberdog.jsx?v=6' },
+    { src: 'cyberdog.jsx?v=7' },
     { src: 'app.jsx?v=10' },
   ];
 

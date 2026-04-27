@@ -267,10 +267,12 @@
         const incoming = payload.new && payload.new.state;
         if (!incoming) return;
         const incomingJson = canonical(incoming);
-        // Our own echo — skip
-        if (incomingJson === lastPushedJson) return;
-        // Already matches current local state — nothing to do
-        if (incomingJson === canonical(collectState())) return;
+        // Our own echo — skip. Clear any pending stale reload too: a previous
+        // event scheduled a timer with an older payload, and that payload would
+        // now wipe edits made between then and now.
+        if (incomingJson === lastPushedJson) { clearTimeout(reloadTimer); return; }
+        // Already matches current local state — converged, drop any stale timer.
+        if (incomingJson === canonical(collectState())) { clearTimeout(reloadTimer); return; }
         // Schedule a reload; bump the timer if more events arrive in the meantime
         clearTimeout(reloadTimer);
         reloadTimer = setTimeout(() => {
